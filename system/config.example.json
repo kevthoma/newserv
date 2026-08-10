@@ -107,7 +107,9 @@
   // IPStackListen and PPPStackListen.
   // Corellia: enabled on :5000 so the account portal can create accounts / reload config over the HTTP
   // API. LAN-ONLY — the API has no authentication; never forward this port to the public Internet.
-  "HTTPListen": [["0.0.0.0", 5000]],
+  // Entries are a bare port (int -> binds 0.0.0.0:PORT) or an "addr:port" / unix-socket string; a
+  // nested [addr, port] array is NOT accepted (see DataIndex.cc HTTPListen parsing).
+  "HTTPListen": [5000],
 
   // Banned IP address ranges. If a client whose remote IPv4 address is in any of these ranges connects to the server,
   // they are immediately disconnected with no message. Entries in this list may be individiual IP addresses (e.g.
