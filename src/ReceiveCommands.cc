@@ -233,13 +233,14 @@ static std::shared_ptr<const Menu> proxy_options_menu_for_client(std::shared_ptr
   return ret;
 }
 
-static asio::awaitable<void> send_auto_patches_if_needed(std::shared_ptr<Client> c) {
+// One-time: seed a never-initialized BB account's enabled-patches set from DefaultAutoPatches, so the
+// configured enhancements default ON while staying player-overridable in the Patches menu. Runs once
+// per account (guarded by auto_patches_initialized) and never overrides a player's later choices.
+// Called early in the BB login procedure (so the Patches menu reads correct) and again before sending
+// patches (idempotent safety net).
+static void seed_default_auto_patches_if_needed(std::shared_ptr<Client> c) {
   auto s = c->require_server_state();
-
-  // One-time: seed a never-initialized BB account's enabled-patches set from DefaultAutoPatches, so
-  // the configured enhancements default ON while staying player-overridable in the Patches menu.
-  // Runs once per account (guarded by auto_patches_initialized) and never overrides later choices.
-  if ((c->version() == Version::BB_V4) &&
+  if ((c->version() == Version::BB_V4) && c->login && c->login->account &&
       !c->login->account->auto_patches_initialized &&
       !s->data->default_auto_patches.empty()) {
     for (const auto& patch_name : s->data->default_auto_patches) {
@@ -248,6 +249,11 @@ static asio::awaitable<void> send_auto_patches_if_needed(std::shared_ptr<Client>
     c->login->account->auto_patches_initialized = true;
     c->login->account->save();
   }
+}
+
+static asio::awaitable<void> send_auto_patches_if_needed(std::shared_ptr<Client> c) {
+  auto s = c->require_server_state();
+  seed_default_auto_patches_if_needed(c);
 
   if (c->login->account->auto_patches_enabled.empty() &&
       ((c->version() != Version::BB_V4) || s->data->bb_required_patches.empty()) &&
@@ -312,6 +318,9 @@ asio::awaitable<void> start_login_server_procedure(std::shared_ptr<Client> c) {
     // This implicitly loads the client's account and player data from disk
     send_complete_player_bb(c);
     c->should_update_play_time = true;
+    // Seed default patches now (account is loaded, before the main/Patches menu) so the menu reads
+    // them as enabled on the very first view, not only after entering a lobby.
+    seed_default_auto_patches_if_needed(c);
   } else if (!is_pre_v1(c->version())) {
     // send_get_player_info is required to differentiate Ep3 from Ep3 NTE. We send it early in the login procedure
     // because the contents of the card list update and the tournament entry depend on this difference.
