@@ -223,6 +223,7 @@ Account::Account(const phosg::JSON& json)
     }
   } catch (const std::out_of_range&) {
   }
+  this->auto_patches_initialized = json.get_bool("AutoPatchesInitialized", false);
 }
 
 phosg::JSON Account::json() const {
@@ -274,6 +275,7 @@ phosg::JSON Account::json() const {
       {"Ep3TotalMesetaEarned", this->ep3_total_meseta_earned},
       {"BBTeamID", this->bb_team_id},
       {"AutoPatchesEnabled", std::move(auto_patches_json)},
+      {"AutoPatchesInitialized", this->auto_patches_initialized},
   });
 }
 

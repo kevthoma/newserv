@@ -1167,6 +1167,16 @@ void DataIndex::load_config_early() {
     }
   } catch (const std::out_of_range&) {
   }
+  // Patches a NEW/never-initialized BB account defaults to (still shown + toggleable in the menu,
+  // unlike AutoPatches which are forced/hidden). Seeded once per account at login; see
+  // send_auto_patches_if_needed in ReceiveCommands.cc.
+  this->default_auto_patches.clear();
+  try {
+    for (const auto& it : this->config_json->get_list("DefaultAutoPatches")) {
+      this->default_auto_patches.emplace(it->as_string());
+    }
+  } catch (const std::out_of_range&) {
+  }
 
   try {
     this->cheat_flags = CheatFlags(this->config_json->at("CheatingBehaviors"));

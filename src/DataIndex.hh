@@ -236,6 +236,7 @@ struct DataIndex {
   std::array<std::array<size_t, 4>, 3> min_levels_v4; // Indexed as [episode][difficulty]
   std::unordered_set<std::string> bb_required_patches;
   std::unordered_set<std::string> auto_patches;
+  std::unordered_set<std::string> default_auto_patches;
   CheatFlags cheat_flags;
 
   struct QuestF960Result {

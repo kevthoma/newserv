@@ -96,6 +96,7 @@ struct Account {
   bool is_temporary = false; // If true, isn't saved to disk
 
   std::unordered_set<std::string> auto_patches_enabled;
+  bool auto_patches_initialized = false; // True once seeded from DefaultAutoPatches (see below)
 
   std::unordered_map<std::string, std::shared_ptr<DCNTELicense>> dc_nte_licenses;
   std::unordered_map<uint32_t, std::shared_ptr<V1V2License>> dc_licenses;

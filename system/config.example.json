@@ -1003,6 +1003,24 @@
     // "AccurateKillCount",
   ],
 
+  // Client functions (BB only) that a NEW account defaults to having enabled. Unlike AutoPatches,
+  // these still appear in the Patches menu and each player can toggle them off/on; they're seeded
+  // into an account's enabled set once, the first time it connects on BB (and never re-applied, so
+  // a player's later choices are respected). Use this for "on by default, but overridable"
+  // enhancements. Corellia enables all the BB menu enhancements except "Item pickup" and "Palette"
+  // (and excludes the low-level "Write memory" utility).
+  "DefaultAutoPatches": [
+    "EnemyHPBars",
+    "EnemyDamageSync",
+    "FastTekker",
+    "DrawDistance",
+    "NoRareSelling",
+    "DisableIdleDisconnect",
+    "HungryMagSound",
+    "AccurateKillCount",
+    "MomokaItemExchangeFix",
+  ],
+
   // Whether to retain server drop tables when game leaders change. The client reloads its drop tables when the leader
   // joins a game or returns to Pioneer 2; this leads to some edge cases that could be confusing for players, so
   // newserv instead switches its server tables instantly to the new leader's section ID when the leader leaves the

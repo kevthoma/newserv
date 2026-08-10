@@ -236,6 +236,19 @@ static std::shared_ptr<const Menu> proxy_options_menu_for_client(std::shared_ptr
 static asio::awaitable<void> send_auto_patches_if_needed(std::shared_ptr<Client> c) {
   auto s = c->require_server_state();
 
+  // One-time: seed a never-initialized BB account's enabled-patches set from DefaultAutoPatches, so
+  // the configured enhancements default ON while staying player-overridable in the Patches menu.
+  // Runs once per account (guarded by auto_patches_initialized) and never overrides later choices.
+  if ((c->version() == Version::BB_V4) &&
+      !c->login->account->auto_patches_initialized &&
+      !s->data->default_auto_patches.empty()) {
+    for (const auto& patch_name : s->data->default_auto_patches) {
+      c->login->account->auto_patches_enabled.emplace(patch_name);
+    }
+    c->login->account->auto_patches_initialized = true;
+    c->login->account->save();
+  }
+
   if (c->login->account->auto_patches_enabled.empty() &&
       ((c->version() != Version::BB_V4) || s->data->bb_required_patches.empty()) &&
       s->data->auto_patches.empty()) {
