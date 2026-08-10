@@ -165,8 +165,11 @@
 
   // By default, the interactive shell runs if stdin is a terminal, and doesn't run if it's not. This option, if
   // present, overrides that behavior.
-  // Corellia: forced on so admin commands (add-license / update-account) work from the container console.
-  "RunInteractiveShell": true,
+  // Corellia: LEFT AT DEFAULT (auto-detect) on purpose. Forcing it true in a HEADLESS container (Unraid,
+  // no -it) makes the shell read EOF on stdin and immediately trigger a "Normal shutdown" -> restart loop.
+  // The portal drives newserv over the HTTP API (HTTPListen), not this console, so headless = no shell is
+  // correct. Run the container with `docker run -it` (or set this true) only when you want a live console.
+  // "RunInteractiveShell": false,
 
   // Specify which kinds of logging you want to be enabled. This allows you to make the terminal more or less noisy
   // when players are connected, so you can see only the log messages you care about. The log levels are, in decreasing
