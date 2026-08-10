@@ -1,0 +1,4 @@
+# Shell scripts must keep LF line endings -- a CRLF would break the shebang inside the Linux
+# container (e.g. `#!/usr/bin/env bash\r`: bad interpreter). Force LF regardless of core.autocrlf.
+*.sh text eol=lf
+docker-entrypoint.sh text eol=lf
