@@ -17,7 +17,8 @@
   // public address as their DNS server address in PSO's network configuration.
 
   // Server's name (maximum 16 characters). This appears in the upper-right corner of the screen while in lobbies.
-  "ServerName": "newserv",
+  // Corellia: the player-facing brand. Cities (Agrilat/Coronet) are internal env codenames only.
+  "ServerName": "Corellia",
 
   // User to run the server as. If present, newserv will attempt to switch to this user's permissions after loading its
   // configuration and opening listening sockets. The special value $SUDO_USER causes newserv to look up the desired
@@ -39,7 +40,9 @@
   // Port to listen for DNS queries on. To disable the DNS server, comment this out or set it to zero. By default, the
   // DNS server listens on all interfaces, but you can specify an interface by replacing this with a list of
   // [interface_addr_or_name, port].
-  "DNSServerPort": 53,
+  // Corellia: disabled — we use split-horizon DNS + hex-patched clients, and this avoids a port-53
+  // clash on the Unraid host. Clients reach the server by IP, not via newserv's own DNS.
+  "DNSServerPort": 0,
 
   // Ports to listen for game connections on.
   "PortConfiguration": {
@@ -102,7 +105,9 @@
   // from e.g. an in-house Web portal or Discord bot. It would be unwise to expose any of these ports to the public
   // Internet (hence why the default here is blank). The format of entries in this list is the same as for
   // IPStackListen and PPPStackListen.
-  "HTTPListen": [],
+  // Corellia: enabled on :5000 so the account portal can create accounts / reload config over the HTTP
+  // API. LAN-ONLY — the API has no authentication; never forward this port to the public Internet.
+  "HTTPListen": [["0.0.0.0", 5000]],
 
   // Banned IP address ranges. If a client whose remote IPv4 address is in any of these ranges connects to the server,
   // they are immediately disconnected with no message. Entries in this list may be individiual IP addresses (e.g.
@@ -158,7 +163,8 @@
 
   // By default, the interactive shell runs if stdin is a terminal, and doesn't run if it's not. This option, if
   // present, overrides that behavior.
-  // "RunInteractiveShell": false,
+  // Corellia: forced on so admin commands (add-license / update-account) work from the container console.
+  "RunInteractiveShell": true,
 
   // Specify which kinds of logging you want to be enabled. This allows you to make the terminal more or less noisy
   // when players are connected, so you can see only the log messages you care about. The log levels are, in decreasing
@@ -214,7 +220,9 @@
   // unregistered license (serial number and access key combination, or username and password combination on BB), a new
   // account is created for them. Accounts are addressed by serial numbers; on BB, the new account's serial number is a
   // hash of the username.
-  "AllowUnregisteredUsers": true,
+  // Corellia: disabled — accounts are provisioned explicitly (portal signup / migration sync), so
+  // unknown logins are rejected rather than auto-creating an account.
+  "AllowUnregisteredUsers": false,
 
   // If this option is enabled and AllowUnregisteredUsers is enabled, the server will use temporary accounts for the
   // prototype versions (DC NTE, DC 11/2000, GC NTE, and Ep3 NTE) instead of permanent accounts. In this case, you can
@@ -969,7 +977,8 @@
 
   // EXP multiplier for BB games. If this is not an integer, the client will display incorrect EXP values, unless you
   // also add "ServerEXPDisplay" to BBRequiredPatches.
-  "BBGlobalEXPMultiplier": 1,
+  // Corellia: 50x EXP (ported from the legacy Tethealla server). Kept an integer so no ServerEXPDisplay patch is needed.
+  "BBGlobalEXPMultiplier": 50,
   // EXP share multiplier for BB games. The logic for EXP computation is:
   // - If the player lands the killing blow on an enemy they get full EXP (or multiplied by this value, if this value
   //   is greater than 1).
@@ -985,7 +994,8 @@
   // Drop rate multiplier for all server drop tables. This applies to server drop modes in all game versions. If you
   // want to scale the drop rates for only some versions, use the --multiply option to the convert-rare-item-set action
   // instead.
-  "ServerGlobalDropRateMultiplier": 1.0,
+  // Corellia: 10x drops across newserv's default drop tables (first-cut value; custom legacy charts deferred).
+  "ServerGlobalDropRateMultiplier": 10.0,
 
   // Client functions listed here are always enabled as auto patches for BB clients. For example, you can add
   // "StackLimits" here if you've edited the StackLimits patch and the ItemStackLimits field in this file, and want the
@@ -1319,17 +1329,16 @@
   // Merikle. (Specifically, if uparam1 > 2, this is the case.) When a Mericarol is replaced, the enemy index is used
   // to determine whether it will be a Mericus (even enemy index) or Merikle (odd enemy index).
   "RareEnemyRates-Normal": {
-    // These are probabilities out of 0xFFFFFFFF - so 0 means that rare enemy will never appear, and 0xFFFFFFFF means
-    // it will always appear (until 16 rare enemies have been assigned).
-    "Hildeblue": 0x0083126E, // 1/500
-    "Rappy": 0x0083126E, // 1/500
-    "NarLily": 0x0083126E, // 1/500
-    "PouillySlime": 0x0083126E, // 1/500
-    "Mericarand": 0x33333333, // 1/5
-    "MerissaAA": 0x0083126E, // 1/500
-    "Pazuzu": 0x0083126E, // 1/500
-    "DorphonEclair": 0x0083126E, // 1/500
-    "Kondrieu": 0x1999999A, // 1/10
+    // Probabilities out of 0xFFFFFFFF. Corellia: 25% Rappy family, 10% every other rare.
+    "Hildeblue": 0x1999999A, // 10%
+    "Rappy": 0x40000000, // 25%
+    "NarLily": 0x1999999A, // 10%
+    "PouillySlime": 0x1999999A, // 10%
+    "Mericarand": 0x1999999A, // 10%
+    "MerissaAA": 0x1999999A, // 10%
+    "Pazuzu": 0x1999999A, // 10%
+    "DorphonEclair": 0x1999999A, // 10%
+    "Kondrieu": 0x1999999A, // 10%
   },
   // "RareEnemyRates-Hard": {...},
   // "RareEnemyRates-VeryHard": {...},
