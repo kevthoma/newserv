@@ -4138,10 +4138,12 @@ void send_server_time(std::shared_ptr<Client> c) {
 
   time_t t_secs = t / 1000000;
   struct tm t_parsed;
+  // Send the server's LOCAL time (honors the container's TZ) rather than UTC, so the in-game
+  // clock ("Internet Time") shows the server's local time instead of being offset.
 #ifndef PHOSG_WINDOWS
-  gmtime_r(&t_secs, &t_parsed);
+  localtime_r(&t_secs, &t_parsed);
 #else
-  gmtime_s(&t_parsed, &t_secs);
+  localtime_s(&t_parsed, &t_secs);
 #endif
 
   std::string time_str(128, 0);
