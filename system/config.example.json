@@ -288,8 +288,8 @@
   // Patch server message. If not blank, these messages will be shown to PSO PC and PSO BB users (respectively) when
   // they connect to the patch server. Note that PSO PC displays the text in a Windows edit control instead of using
   // PSO's normal text renderer, so linebreaks must be \r\n and color escapes do not work in PCPatchServerMessage.
-  "PCPatchServerMessage": "Corellia\r\n\r\nA private, non-commercial Phantasy Star Online server.\r\nNot affiliated with SEGA or Sonic Team.\r\n\r\nHave fun on Pioneer 2!",
-  "BBPatchServerMessage": "$C3Corellia$C7\n\nA private, non-commercial Phantasy Star Online server.\nNot affiliated with SEGA or Sonic Team.\n\nHave fun on Pioneer 2!",
+  "PCPatchServerMessage": "Corellia\r\n\r\nWelcome Hunter!\r\nCorellia is a private, non-commercial Phantasy Star Online server.\r\nNot affiliated with SEGA or Sonic Team.\r\n\r\nHave fun on Pioneer 2!",
+  "BBPatchServerMessage": "$C3Corellia$C7\n\nWelcome Hunter!\n$C3Corellia$C7 is a private, non-commercial Phantasy Star Online server.\nNot affiliated with SEGA or Sonic Team.\n\nHave fun on Pioneer 2!",
 
   // Lobby search orders. When a player joins the lobby from the main menu, they are placed into the first lobby in the
   // list that has empty spaces. In these lists, CARD lobbies C1-C5 are referenced as lobbies 16-20. The number of
