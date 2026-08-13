@@ -72,12 +72,10 @@ RUN cp -f system/config.example.json system/config.json && \
 FROM ${BASE_IMAGE} AS final
 
 # libasio-dev: runtime dep. iproute2: lets the entrypoint detect the container's LAN IP to stamp into
-# the seeded config (see docker-entrypoint.sh). tzdata: so the TZ env resolves to a real timezone,
-# which localtime() (the in-game "Internet Time" clock) honors instead of falling back to UTC.
+# the seeded config (see docker-entrypoint.sh).
 RUN apt update && apt install -y --no-install-recommends \
     libasio-dev \
     iproute2 \
-    tzdata \
     && rm -rf /var/lib/apt/lists/* /var/cache/apt/*
 
 WORKDIR /newserv
