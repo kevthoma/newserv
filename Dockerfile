@@ -71,11 +71,14 @@ RUN cp -f system/config.example.json system/config.json && \
 
 FROM ${BASE_IMAGE} AS final
 
-# libasio-dev: runtime dep. iproute2: lets the entrypoint detect the container's LAN IP to stamp into
-# the seeded config (see docker-entrypoint.sh).
+# libasio-dev: runtime dep. iproute2: lets the entrypoint detect the container's LAN IP. curl +
+# ca-certificates: the entrypoint's ExternalAddress auto-sync fetches the public IP over HTTPS and
+# calls the local reload-config API (see docker-entrypoint.sh).
 RUN apt update && apt install -y --no-install-recommends \
     libasio-dev \
     iproute2 \
+    curl \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/* /var/cache/apt/*
 
 WORKDIR /newserv
