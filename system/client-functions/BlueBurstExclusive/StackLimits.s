@@ -63,7 +63,9 @@ max_stack_size_for_tool_start:
   # This array specifies the stack limits for each tool class. The array index is the second byte of the item data (see
   # names-v4.json for the values; for e.g. tech disks this is 02). For classes beyond 15, the value for 15 is used.
   # Index:  00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F 10 11 12 13 14 15
-  .binary   0A 0A 01 0A 0A 0A 0A 0A 0A 01 01 01 01 01 01 01 63 01 01 01 01 01
+  # Corellia "bigger stacks": all tool classes 99 (0x63) EXCEPT tech disks (idx 02) = 1. MUST match the BB
+  # ItemStackLimits line in config.json. (idx 10 = Photon Drops, already 99 in vanilla.)
+  .binary   63 63 01 63 63 63 63 63 63 63 63 63 63 63 63 63 63 63 63 63 63 63
 data_end:
 
   # eax = std::min<uint8_t>(data1[1], 0x15)

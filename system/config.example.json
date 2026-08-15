@@ -624,7 +624,7 @@
     {"MesetaLimit": 999999, "ToolLimits": [10, 10, 1, 10, 10, 10, 10, 10, 10, 1, 1, 1, 1, 1, 1, 1, 99, 1]}, // GC Ep3 NTE
     {"MesetaLimit": 999999, "ToolLimits": [10, 10, 1, 10, 10, 10, 10, 10, 10, 1, 1, 1, 1, 1, 1, 1, 99, 1]}, // GC Ep3
     {"MesetaLimit": 999999, "ToolLimits": [10, 10, 1, 10, 10, 10, 10, 10, 10, 1, 1, 1, 1, 1, 1, 1, 99, 1]}, // XB
-    {"MesetaLimit": 999999, "ToolLimits": [10, 10, 1, 10, 10, 10, 10, 10, 10, 1, 1, 1, 1, 1, 1, 1, 99, 1]}, // BB
+    {"MesetaLimit": 999999, "ToolLimits": [99, 99, 1, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99]}, // BB (Corellia: "bigger stacks" 99, disks=1; MUST match StackLimits.s .binary array + BBRequiredPatches)
   ],
 
   // Quest result item definitions for opcode F95E (used in Black Paper's Dangerous Deal 1 and 2). This list is indexed
@@ -1007,6 +1007,10 @@
   // limits to take effect on BB clients. If a client connects using a client version that isn't compatible with one of
   // these patches, the client will be disconnected.
   "BBRequiredPatches": [
+    // Corellia: "bigger stacks" QoL -- delivers the StackLimits runtime patch so BB clients stack tools to 99
+    // (disks=1), matching the BB ItemStackLimits line above. Corellia's client is compatible (builds 50YJ/59NJ/59NL);
+    // incompatible BB clients are disconnected, which is intended (keeps the item economy consistent).
+    "StackLimits",
     // You will probably want to uncomment the following line if you want to use items that were unreleased on the
     // original Sega servers.
     // "ClearUnreleasedItemList",
