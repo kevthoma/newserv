@@ -1018,6 +1018,28 @@
   // Client functions listed here are automatically sent to all clients. If a client connects using a client version
   // that isn't compatible with some of these patches, the incompatible patches are skipped and the client is allowed
   // to connect. This option applies to all PSO versions, not only BB.
+  //
+  // CORELLIA NOTE -- incompatible entries are skipped SILENTLY, so listing a patch that doesn't target our client
+  // looks like it worked and does nothing at all. system/client-functions/ mixes Dreamcast, GameCube, Xbox and BB,
+  // and the filename gives no hint. Check the .versions line before adding anything: ours is BB 59NL, so a patch
+  // applies only if some .versions line contains 50YJ / 59NJ / 59NL. Two gotchas when checking -- those lines are
+  // often INDENTED, and a file can carry SEVERAL of them (one per version family, each with its own code and its
+  // own .meta description). Match .versions allowing leading whitespace, and read them all, not just the first.
+  //
+  // Verified BB-applicable 2026-08-16: AccurateKillCount, BankSize, CallProtectedHandler, ClassicMainWarpBehavior,
+  // ClearUnreleasedItemList, DisableIdleDisconnect, DrawDistance, EnemyDamageSyncBB, EnemyHPBarsBB, ExitAnywhere,
+  // FastTekker, HungryMagSound, ItemPickup, MomokaItemExchangeFix, MoreSaveSlots, NoRareSelling, PaletteBB,
+  // ServerEXPDisplay, StackLimits.
+  // NOT BB despite promising names: CommonBank (GameCube only -- BB's shared bank is the $bank command instead),
+  // ChatFeatures, BugFixes, Decoction, ExtendedItemInfo, ItemLossPrevention, RaresInQuests, UltimateMapFix,
+  // Movement, every *GC/*XB/*DC variant, and everything under Episode3/.
+  //
+  // ExitAnywhere is also NOT a toggle: it has no .meta visibility (so it defaults to hidden) and is fetched by name
+  // and sent on demand to implement $exit in a game with no quest loaded. Listing it here does nothing.
+  //
+  // ItemPickup is BB-applicable but gates pickup on holding SHIFT (a keyboard key; the GameCube build uses Z).
+  // Do NOT force it on here -- a controller-only player would be unable to pick up items. Players can opt in
+  // themselves from the in-game Patches menu, where it already appears.
   "AutoPatches": [
     // "AccurateKillCount",
   ],
