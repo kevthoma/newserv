@@ -444,6 +444,19 @@ bool Client::can_use_chat_commands() const {
 void Client::set_login(std::shared_ptr<Login> login) {
   this->login = login;
 
+  // Record where and when this account last logged in, for the account portal. Skipped for
+  // temporary accounts, which are never written to disk anyway.
+  if (!login->account->is_temporary) {
+    login->account->last_login_time = phosg::now() / 1000000;
+    // remote_addr lives on SocketChannel, not the Channel base; non-socket channels (the IP stack
+    // simulator, proxy sessions) simply leave last_ip as it was.
+    auto sock_ch = std::dynamic_pointer_cast<SocketChannel>(this->channel);
+    if (sock_ch) {
+      login->account->last_ip = sock_ch->remote_addr.address().to_string();
+    }
+    login->account->save();
+  }
+
   auto s = this->require_server_state();
   if (!s->data->allow_same_account_concurrent_logins) {
     auto it = s->client_for_account.find(login->account->account_id);
