@@ -157,6 +157,10 @@
   // If a client doesn't send anything for this long, they will be disconnected. This should always be longer than
   // ClientPingInterval, since an alive client should have a chance to respond to the server's ping.
   "ClientIdleTimeout": 60000000, // 1 minute
+  // The same, but for clients connected to the patch server. This should be much longer than ClientIdleTimeout:
+  // a patch client sends nothing back while it's receiving files, so it looks idle for the entire duration of a
+  // download. Set it longer than the slowest download you expect to serve, or long transfers get cut off.
+  "PatchClientIdleTimeout": 1800000000, // 30 minutes
 
   // There is a proxy option that allows users to save copies of various game files on the server side. If you have
   // external clients connecting to your server, you can disable this option to prevent clients from generating files

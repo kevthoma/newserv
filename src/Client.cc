@@ -283,7 +283,13 @@ void Client::reschedule_ping_and_timeout_timers() {
     });
   }
 
-  this->idle_timeout_timer.expires_after(std::chrono::microseconds(s->data->client_idle_timeout_usecs));
+  // Patch clients send nothing back to the server while a file transfer is in progress, so the general idle
+  // timeout (60s by default) expires in the middle of any download longer than that and disconnects them.
+  // PatchClientIdleTimeout exists for exactly this case but was never read anywhere; use it here.
+  uint64_t idle_timeout_usecs = is_patch(this->version())
+      ? s->data->patch_client_idle_timeout_usecs
+      : s->data->client_idle_timeout_usecs;
+  this->idle_timeout_timer.expires_after(std::chrono::microseconds(idle_timeout_usecs));
   this->idle_timeout_timer.async_wait([this](std::error_code ec) {
     if (!ec) {
       this->log.info_f("Idle timeout expired");
