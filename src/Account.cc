@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <chrono>
 #include <filesystem>
 #include <phosg/Filesystem.hh>
 #include <phosg/Hash.hh>
@@ -126,7 +127,9 @@ Account::Account(const phosg::JSON& json)
       ban_end_time(0),
       ep3_current_meseta(0),
       ep3_total_meseta_earned(0),
-      bb_team_id(0) {
+      bb_team_id(0),
+      creation_time(0),
+      last_login_time(0) {
   uint64_t format_version = 0;
   try {
     format_version = json.get_int("FormatVersion");
@@ -216,6 +219,9 @@ Account::Account(const phosg::JSON& json)
   this->ep3_current_meseta = json.get_int("Ep3CurrentMeseta", 0);
   this->ep3_total_meseta_earned = json.get_int("Ep3TotalMesetaEarned", 0);
   this->bb_team_id = json.get_int("BBTeamID", 0);
+  this->creation_time = json.get_int("CreationTime", 0);
+  this->last_login_time = json.get_int("LastLoginTime", 0);
+  this->last_ip = json.get_string("LastIP", "");
 
   try {
     for (const auto& it : json.get_list("AutoPatchesEnabled")) {
@@ -274,6 +280,9 @@ phosg::JSON Account::json() const {
       {"Ep3CurrentMeseta", this->ep3_current_meseta},
       {"Ep3TotalMesetaEarned", this->ep3_total_meseta_earned},
       {"BBTeamID", this->bb_team_id},
+      {"CreationTime", this->creation_time},
+      {"LastLoginTime", this->last_login_time},
+      {"LastIP", this->last_ip},
       {"AutoPatchesEnabled", std::move(auto_patches_json)},
       {"AutoPatchesInitialized", this->auto_patches_initialized},
   });
@@ -798,6 +807,12 @@ void AccountIndex::add_locked(std::shared_ptr<Account> a) {
   if (this->force_all_temporary) {
     a->is_temporary = true;
   }
+  // New accounts get a creation timestamp. Accounts loaded from disk already have one by this point
+  // (the index constructor backfills it from the file's mtime), so this only fires for genuinely new
+  // accounts. It is persisted by the save() that set_login() does on the first login.
+  if (a->creation_time == 0) {
+    a->creation_time = phosg::now() / 1000000;
+  }
 
   for (const auto& it : a->dc_nte_licenses) {
     if (this->by_dc_nte_serial_number.count(it.second->serial_number)) {
@@ -1028,8 +1043,20 @@ AccountIndex::AccountIndex(bool force_all_temporary) : force_all_temporary(force
         std::string filename = item.path().filename().string();
         if (filename.ends_with(".json")) {
           try {
-            phosg::JSON json = phosg::JSON::parse(phosg::load_file("system/licenses/" + filename));
-            this->add(std::make_shared<Account>(json));
+            std::string path = "system/licenses/" + filename;
+            phosg::JSON json = phosg::JSON::parse(phosg::load_file(path));
+            auto account = std::make_shared<Account>(json);
+            // Accounts written before CreationTime existed have no registration date. The license
+            // file's mtime is the closest thing available, so use it rather than showing nothing.
+            // (It's only an approximation - the file is rewritten whenever the account changes.)
+            if (account->creation_time == 0) {
+              // Same portable file_time_type -> system_clock conversion that PatchFileIndex uses.
+              auto mtime = std::filesystem::last_write_time(path);
+              auto sctp = std::chrono::time_point_cast<std::chrono::seconds>(
+                  mtime - std::filesystem::file_time_type::clock::now() + std::chrono::system_clock::now());
+              account->creation_time = sctp.time_since_epoch().count();
+            }
+            this->add(account);
           } catch (const std::exception& e) {
             phosg::log_error_f("Failed to index account {}", filename);
             throw;

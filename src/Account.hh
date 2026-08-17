@@ -93,6 +93,12 @@ struct Account {
   uint32_t ep3_total_meseta_earned = 0;
 
   uint32_t bb_team_id = 0;
+  // Account provenance, for server operators and account portals. Times are Unix seconds. All three are
+  // optional: account files written before these fields existed simply have them unset, and creation_time
+  // is backfilled from the license file's mtime in that case.
+  uint64_t creation_time = 0; // Unix seconds; 0 = unknown
+  uint64_t last_login_time = 0; // Unix seconds; 0 = never seen
+  std::string last_ip; // Remote address of the most recent login
   bool is_temporary = false; // If true, isn't saved to disk
 
   std::unordered_set<std::string> auto_patches_enabled;
