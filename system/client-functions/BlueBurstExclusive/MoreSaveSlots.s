@@ -5,8 +5,16 @@
 # server, so the player has to connect once to get the patch, then disconnect and connect again to use the additional
 # slots.
 
-# Corellia: raised from upstream's 12 to 20, to match the portal's NEWSERV_CHARACTER_SLOTS. To use a different
-# slot count, change the value of the slot_count label below (must be >= 4 and <= 127 -- it is emitted as a byte).
+# CORELLIA: THIS PATCH IS NOT WHAT GIVES OUR PLAYERS EXTRA SLOTS -- DO NOT AUTO-ENABLE IT.
+# Our client ships its own ASI plugin (patches/moresaveslots.asi, loaded by the d3d8 wrapper's ASI loader)
+# which already provides 20 slots. That is the right place for it: as the note above says, this logic runs
+# before the server can send any patch, so the server-side route needs a connect/disconnect/reconnect dance,
+# while an ASI is active from process start. Adding this to DefaultAutoPatches would mean two independent
+# patches rewriting the same client code.
+#
+# It is left at 20 rather than upstream's 12 purely so that IF it is ever run (it defaults to DEBUG_ONLY
+# visibility, so only a debug-enabled admin can), it agrees with the ASI about total_file_size instead of
+# disagreeing. Change slot_count below to retune (must be >= 4 and <= 127 -- it is emitted as a byte).
 
 .meta name="More save slots"
 .meta description=""
