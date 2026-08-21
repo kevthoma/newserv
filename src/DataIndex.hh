@@ -167,6 +167,10 @@ struct DataIndex {
   RunShellBehavior run_shell_behavior = RunShellBehavior::DEFAULT;
   BehaviorSwitch cheat_mode_behavior = BehaviorSwitch::OFF_BY_DEFAULT;
   bool default_switch_assist_enabled = false;
+  // Upstream gates the character-select Dressing Room behind the DressingRoom TEAM REWARD, so a
+  // player who is not in a team can never reach it -- the reward flags sent to a teamless client are
+  // hard-zero. When this is set, the flag is sent to everyone regardless of team.
+  bool dressing_room_always_available = false;
   bool use_game_creator_section_id = false;
   bool rare_notifs_enabled_for_client_drops = false;
   bool default_rare_notifs_enabled_v1_v2 = false;
