@@ -1,3 +1,3 @@
 {
-  "AvailableIf": "F_022B",
+  "AvailableIf": "F_N_022B || F_H_022B || F_V_022B || F_U_022B",
 }
