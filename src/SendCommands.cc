@@ -653,6 +653,22 @@ void send_client_init_bb(std::shared_ptr<Client> c, uint32_t error_code) {
   send_command_t(c, 0x00E6, 0x00000000, cmd);
 }
 
+// Reward flags as this client should see them. Upstream sends a hard zero to anyone not in a team,
+// which means the character-select Dressing Room is unreachable unless a team has bought the
+// DressingRoom reward -- and on a server with no teams at all, unreachable full stop. With
+// DressingRoomAlwaysAvailable set, that one flag is granted to everyone; the rest still have to be
+// earned. Applied everywhere reward flags are sent, not just the live update, because the character
+// select screen reads them from the team membership inside the E2 system file.
+static uint32_t effective_team_reward_flags(std::shared_ptr<Client> c) {
+  auto team = c->team();
+  uint32_t flags = team ? team->reward_flags : 0x00000000;
+  auto s = c->require_server_state();
+  if (s->data->dressing_room_always_available) {
+    flags |= static_cast<uint32_t>(TeamIndex::Team::RewardFlag::DRESSING_ROOM);
+  }
+  return flags;
+}
+
 void send_system_file_bb(std::shared_ptr<Client> c) {
   auto team = c->team();
 
@@ -661,6 +677,8 @@ void send_system_file_bb(std::shared_ptr<Client> c) {
   if (team) {
     cmd.team_membership = team->full_membership_for_member(c->login->account->account_id);
   }
+  // After the membership is filled in, so a teamless client still receives the granted flag.
+  cmd.team_membership.reward_flags = effective_team_reward_flags(c);
   send_command_t(c, 0x00E2, 0x00000000, cmd);
 }
 
@@ -4234,8 +4252,7 @@ void send_all_nearby_team_metadatas_to_client(std::shared_ptr<Client> c, bool is
 }
 
 void send_update_team_reward_flags(std::shared_ptr<Client> c) {
-  auto team = c->team();
-  send_command(c, 0x1DEA, team ? team->reward_flags : 0x00000000);
+  send_command(c, 0x1DEA, effective_team_reward_flags(c));
 }
 
 void send_team_member_list(std::shared_ptr<Client> c) {
