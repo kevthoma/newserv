@@ -23,3 +23,14 @@ void apply_mag_feed_result(
     uint8_t char_class,
     uint8_t section_id,
     bool version_has_rare_mags);
+
+// The evolution half of apply_mag_feed_result, callable on its own. Reads the mag's current stats,
+// so callers that want to ask "what would this mag become?" can set the stats and call this
+// directly instead of having to synthesize a feed.
+void apply_mag_evolution(
+    ItemData& mag_item,
+    std::shared_ptr<const ItemParameterTable> item_parameter_table,
+    std::shared_ptr<const MagMetadataTable> mag_metadata_table,
+    uint8_t char_class,
+    uint8_t section_id,
+    bool version_has_rare_mags);

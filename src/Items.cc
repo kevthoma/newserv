@@ -312,6 +312,20 @@ void apply_mag_feed_result(
   mag_item.data2[0] = std::clamp<ssize_t>(static_cast<ssize_t>(mag_item.data2[0]) + feed_result.synchro, 0, 120);
   mag_item.data2[1] = std::clamp<ssize_t>(static_cast<ssize_t>(mag_item.data2[1]) + feed_result.iq, 0, 200);
 
+  apply_mag_evolution(
+      mag_item, item_parameter_table, mag_metadata_table, char_class, section_id, version_has_rare_mags);
+}
+
+// Separated from apply_mag_feed_result so it can be exercised on its own -- the
+// describe-mag-evolution CLI action calls exactly this, which is what makes that action a
+// trustworthy oracle for anything that reimplements these rules elsewhere.
+void apply_mag_evolution(
+    ItemData& mag_item,
+    std::shared_ptr<const ItemParameterTable> item_parameter_table,
+    std::shared_ptr<const MagMetadataTable> mag_metadata_table,
+    uint8_t char_class,
+    uint8_t section_id,
+    bool version_has_rare_mags) {
   uint8_t mag_level = mag_item.compute_mag_level();
   mag_item.data1[2] = mag_level;
   uint8_t evolution_number = mag_metadata_table->get_evolution_number(mag_item.data1[1]);

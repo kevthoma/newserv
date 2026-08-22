@@ -8,6 +8,7 @@
 
 #include <asio.hpp>
 #include <filesystem>
+#include <iostream>
 #include <mutex>
 #include <phosg/Arguments.hh>
 #include <phosg/Filesystem.hh>
@@ -34,6 +35,7 @@
 #include "HTTPServer.hh"
 #include "IPStackSimulator.hh"
 #include "ImageEncoder.hh"
+#include "Items.hh"
 #include "Loggers.hh"
 #include "NetworkAddresses.hh"
 #include "PPKArchive.hh"
@@ -2380,6 +2382,105 @@ Action a_encode_item_parameter_table(
         data = prs_compress_optimal(data);
       }
       write_output_data(args, data, nullptr);
+    });
+
+Action a_describe_mag_evolution(
+    "describe-mag-evolution", "\
+  describe-mag-evolution [OPTIONS...]\n\
+    Show what a mag would evolve into. Mag evolution is hardcoded logic rather\n\
+    than a data table, so there is nothing to dump; this exposes the logic\n\
+    itself, so that any reimplementation of the rules elsewhere can be checked\n\
+    against the real ones. It calls exactly the function a live feed calls.\n\
+    Describe a single mag with:\n\
+      --class=N: character class index (0-11).\n\
+      --section-id=NAME-OR-N: the character's Section ID.\n\
+      --mag=N: the mag's current type number.\n\
+      --def=N --pow=N --dex=N --mind=N: its stats, in whole levels.\n\
+    With --batch instead, read cases from stdin and write them back to stdout\n\
+    with the resulting mag number appended. Each case is one line of\n\
+    tab-separated fields:\n\
+      class<TAB>section-id<TAB>mag<TAB>def<TAB>pow<TAB>dex<TAB>mind\n\
+    Blank lines and lines beginning with # are echoed unchanged, so a case\n\
+    file can carry its own comments.\n",
+    +[](phosg::Arguments& args) {
+      auto di = std::make_shared<DataIndex>(get_config_filename(args));
+      di->load_config_early();
+      di->load_patch_indexes();
+      di->load_text_index();
+      di->load_item_definitions();
+      di->load_item_name_indexes();
+
+      Version version = get_cli_version(args, Version::BB_V4);
+      auto item_parameter_table = di->item_parameter_table(version);
+      auto mag_metadata_table = di->mag_metadata_table(version);
+      auto name_index = di->item_name_index(version);
+
+      // Build a mag of the given type with the given stats and evolve it. Stats are stored
+      // multiplied by 100, exactly as a real mag's are, so the rules see what they would in a
+      // live feed -- this deliberately calls apply_mag_evolution rather than reimplementing it.
+      auto evolve = [&](uint8_t char_class, uint8_t section_id, uint8_t mag_number,
+                        uint16_t def, uint16_t pow, uint16_t dex, uint16_t mind) -> uint8_t {
+        ItemData mag;
+        mag.data1[0] = 0x02;
+        mag.data1[1] = mag_number;
+        mag.data1w[2] = def * 100;
+        mag.data1w[3] = pow * 100;
+        mag.data1w[4] = dex * 100;
+        mag.data1w[5] = mind * 100;
+        apply_mag_evolution(
+            mag, item_parameter_table, mag_metadata_table, char_class, section_id, !is_v1_or_v2(version));
+        return mag.data1[1];
+      };
+
+      if (args.get<bool>("batch")) {
+        std::string line;
+        while (std::getline(std::cin, line)) {
+          while (!line.empty() && ((line.back() == '\r') || (line.back() == '\n'))) {
+            line.pop_back();
+          }
+          if (line.empty() || (line[0] == '#')) {
+            phosg::fwrite_fmt(stdout, "{}\n", line);
+            continue;
+          }
+          auto fields = phosg::split(line, '\t');
+          if (fields.size() != 7) {
+            throw std::runtime_error(std::format("expected 7 tab-separated fields, got {}", fields.size()));
+          }
+          uint8_t result = evolve(
+              stoul(fields[0]), stoul(fields[1]), stoul(fields[2]),
+              stoul(fields[3]), stoul(fields[4]), stoul(fields[5]), stoul(fields[6]));
+          phosg::fwrite_fmt(stdout, "{}\t{}\n", line, result);
+        }
+        return;
+      }
+
+      uint8_t char_class = args.get<uint8_t>("class", 0);
+      const std::string& section_id_str = args.get<std::string>("section-id", false);
+      uint8_t section_id = section_id_str.empty() ? 0 : section_id_for_name(section_id_str);
+      uint8_t mag_number = args.get<uint8_t>("mag", 0);
+      uint16_t def = args.get<uint16_t>("def", 0);
+      uint16_t pow = args.get<uint16_t>("pow", 0);
+      uint16_t dex = args.get<uint16_t>("dex", 0);
+      uint16_t mind = args.get<uint16_t>("mind", 0);
+
+      auto describe = [&](uint8_t number) -> std::string {
+        ItemData item;
+        item.data1[0] = 0x02;
+        item.data1[1] = number;
+        return name_index->describe_item(item);
+      };
+
+      uint8_t result = evolve(char_class, section_id, mag_number, def, pow, dex, mind);
+      phosg::log_info_f("Character:  class {} ({}) on {}",
+          char_class, name_for_char_class(char_class), name_for_section_id(section_id));
+      phosg::log_info_f("Mag:        {:02X} ({})", mag_number, describe(mag_number));
+      phosg::log_info_f("Stats:      DEF {} POW {} DEX {} MIND {} (level {})",
+          def, pow, dex, mind, def + pow + dex + mind);
+      if (result == mag_number) {
+        phosg::log_info_f("Result:     does not evolve");
+      } else {
+        phosg::log_info_f("Result:     {:02X} ({})", result, describe(result));
+      }
     });
 
 Action a_decode_mag_metadata_table(
