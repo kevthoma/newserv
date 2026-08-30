@@ -36,7 +36,14 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository_owner }}/newserv
           tags: |
-            type=raw,value=latest
+            # :latest ONLY from the default branch. workflow_dispatch accepts ANY ref, so without
+            # this guard building a feature branch on demand would publish it as :latest -- the tag
+            # the Unraid containers pull on Force-update -- and untested code could reach prod via
+            # any later container recreate, silently. Same hole the client installers already had
+            # closed ("stage and promote only after passing"); this is the Docker equivalent.
+            type=raw,value=latest,enable={{is_default_branch}}
+            # Always tagged by commit, so a branch CAN be built and tested by sha without
+            # ever claiming to be latest.
             type=sha
 
       - name: Set up Buildx
