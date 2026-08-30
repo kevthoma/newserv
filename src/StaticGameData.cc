@@ -287,7 +287,7 @@ uint8_t npc_for_name(const std::string& name, Version version) {
 }
 
 const char* name_for_char_class(uint8_t cls) {
-  static const std::array<const char*, 12> names = {
+  static const std::array<const char*, 12> names{
       /* 00 */ "HUmar",
       /* 01 */ "HUnewearl",
       /* 02 */ "HUcast",
@@ -308,7 +308,7 @@ const char* name_for_char_class(uint8_t cls) {
 }
 
 const char* abbreviation_for_char_class(uint8_t cls) {
-  static const std::array<const char*, 12> names = {
+  static const std::array<const char*, 12> names{
       "HUmr", "HUnl", "HUct", "RAmr", "RAct", "RAcl", "FOml", "FOnm", "FOnl", "HUcl", "FOmr", "RAml"};
   try {
     return names.at(cls);
@@ -371,30 +371,17 @@ bool char_class_is_force(uint8_t cls) {
 }
 
 const char* name_for_difficulty(Difficulty difficulty) {
-  static const std::array<const char*, 4> names = {"Normal", "Hard", "Very Hard", "Ultimate"};
-  try {
-    return names.at(static_cast<size_t>(difficulty));
-  } catch (const std::out_of_range&) {
-    return "Unknown";
-  }
+  static const std::array<const char*, 4> names{"Normal", "Hard", "Very Hard", "Ultimate"};
+  return (static_cast<size_t>(difficulty) >= names.size()) ? "Unknown" : names[static_cast<size_t>(difficulty)];
 }
 
 const char* token_name_for_difficulty(Difficulty difficulty) {
-  static const std::array<const char*, 4> names = {"Normal", "Hard", "VeryHard", "Ultimate"};
-  try {
-    return names.at(static_cast<size_t>(difficulty));
-  } catch (const std::out_of_range&) {
-    return "Unknown";
-  }
+  static const std::array<const char*, 4> names{"Normal", "Hard", "VeryHard", "Ultimate"};
+  return (static_cast<size_t>(difficulty) >= names.size()) ? "Unknown" : names[static_cast<size_t>(difficulty)];
 }
 
 char abbreviation_for_difficulty(Difficulty difficulty) {
-  static const std::array<char, 4> names = {'N', 'H', 'V', 'U'};
-  try {
-    return names.at(static_cast<size_t>(difficulty));
-  } catch (const std::out_of_range&) {
-    return '?';
-  }
+  return (static_cast<size_t>(difficulty) >= 4) ? '?' : "NHVU"[static_cast<size_t>(difficulty)];
 }
 
 Difficulty difficulty_for_name(const std::string& name) {
@@ -531,6 +518,20 @@ const std::unordered_map<std::string, uint8_t> mag_color_for_name = {
     {"turquoise", 0x0C}, {"fuchsia", 0x0D}, {"grey", 0x0E}, {"cream", 0x0F}, {"pink", 0x10}, {"dark-green", 0x11},
     {"costume-color", 0x12}};
 
+uint32_t rgb888_text_color_for_char(char ch) {
+  constexpr static std::array<uint32_t, 10> num_colors{
+      0x000000, 0x0000FF, 0x00FF00, 0x00FFFF, 0xFF0000, 0xFF00FF, 0xFFFF00, 0xFFFFFF, 0xFF8080, 0x8080FF};
+  if (ch == 'G') {
+    return 0xFFE000;
+  } else if (ch == 'a') {
+    return 0xF5A052;
+  } else if ((ch >= '0') && (ch <= '9')) {
+    return num_colors[ch - '0'];
+  } else {
+    return 0xFFFFFF;
+  }
+}
+
 static constexpr uint8_t F_CITY = FloorDefinition::Flag::CITY;
 static constexpr uint8_t F_LOBBY = FloorDefinition::Flag::LOBBY;
 static constexpr uint8_t F_BOSS = FloorDefinition::Flag::BOSS_ARENA;
@@ -623,39 +624,36 @@ const FloorDefinition& FloorDefinition::get_by_drop_area_norm(Episode episode, u
   }
 }
 
-const FloorDefinition& FloorDefinition::get(Episode episode, const std::string& name) {
-  static std::unordered_map<std::string, size_t> index_ep1;
-  static std::unordered_map<std::string, size_t> index_ep2;
-  static std::unordered_map<std::string, size_t> index_ep4;
-
-  std::unordered_map<std::string, size_t>* index;
-  switch (episode) {
-    case Episode::EP1:
-      index = &index_ep1;
-      break;
-    case Episode::EP2:
-      index = &index_ep2;
-      break;
-    case Episode::EP4:
-      index = &index_ep4;
-      break;
-    default:
-      throw std::logic_error("invalid episode");
-  }
-
-  if (index->empty()) {
-    for (size_t z = 0; z < floor_defs.size(); z++) {
-      const auto& def = floor_defs[z];
-      if (def.episode != episode) {
-        continue;
-      }
+static std::unordered_map<std::string, size_t> generate_floor_definition_name_index_for_episode(Episode episode) {
+  std::unordered_map<std::string, size_t> ret;
+  for (size_t z = 0; z < floor_defs.size(); z++) {
+    const auto& def = floor_defs[z];
+    if (def.episode == episode) {
       for (const auto& alias : def.aliases) {
-        index->emplace(alias, z);
+        ret.emplace(alias, z);
       }
     }
   }
+  return ret;
+}
 
-  return floor_defs[index->at(phosg::tolower(name))];
+const FloorDefinition& FloorDefinition::get(Episode episode, const std::string& name) {
+  switch (episode) {
+    case Episode::EP1: {
+      static const auto index = generate_floor_definition_name_index_for_episode(Episode::EP1);
+      return floor_defs[index.at(phosg::tolower(name))];
+    }
+    case Episode::EP2: {
+      static const auto index = generate_floor_definition_name_index_for_episode(Episode::EP2);
+      return floor_defs[index.at(phosg::tolower(name))];
+    }
+    case Episode::EP4: {
+      static const auto index = generate_floor_definition_name_index_for_episode(Episode::EP4);
+      return floor_defs[index.at(phosg::tolower(name))];
+    }
+    default:
+      throw std::logic_error("invalid episode");
+  }
 }
 
 size_t FloorDefinition::limit_for_episode(Episode ep) {
