@@ -129,6 +129,7 @@ set(SOURCES
     src/ShopRandomSets.cc
     src/SignalWatcher.cc
     src/StaticGameData.cc
+    src/StaticTests.cc
     src/TeamIndex.cc
     src/TekkerAdjustmentSet.cc
     src/Text.cc
@@ -153,6 +154,11 @@ add_dependencies(newserv newserv-Revision-cc)
 #     target_compile_options(newserv PRIVATE -fsanitize=address)
 #     target_link_options(newserv PRIVATE -fsanitize=address)
 # endif()
+# if(${CMAKE_BUILD_TYPE} STREQUAL "Debug")
+#     message("-- Enabling thread sanitizer")
+#     target_compile_options(newserv PRIVATE -fsanitize=thread)
+#     target_link_options(newserv PRIVATE -fsanitize=thread)
+# endif()
 
 
 
@@ -169,8 +175,9 @@ add_test(
 
 file(GLOB SCRIPT_TEST_CASES ${CMAKE_SOURCE_DIR}/tests/*.test.sh)
 foreach(SCRIPT_TEST_CASE IN ITEMS ${SCRIPT_TEST_CASES})
+    get_filename_component(SCRIPT_TEST_CASE_NAME ${SCRIPT_TEST_CASE} NAME)
     add_test(
-        NAME ${SCRIPT_TEST_CASE}
+        NAME ${SCRIPT_TEST_CASE_NAME}
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
         COMMAND ${SCRIPT_TEST_CASE} ${CMAKE_BINARY_DIR}/newserv)
 endforeach()
