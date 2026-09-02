@@ -31,6 +31,8 @@ constexpr uint32_t PROXY_OPTIONS = 0xAA0000AA;
 constexpr uint32_t TOURNAMENTS = 0xBB0000BB;
 constexpr uint32_t TOURNAMENTS_FOR_SPEC = 0xBB1111BB;
 constexpr uint32_t TOURNAMENT_ENTRIES = 0xCC0000CC;
+// Corellia: BB ship menu (see ShipDestinations-BB in config.json)
+constexpr uint32_t SHIP_DESTINATIONS = 0xDD0000DD;
 } // namespace MenuID
 
 namespace MainMenuItemID {
@@ -42,6 +44,7 @@ constexpr uint32_t PATCH_SWITCHES = 0x11666611;
 constexpr uint32_t PROGRAMS = 0x11777711;
 constexpr uint32_t DISCONNECT = 0x11888811;
 constexpr uint32_t CLEAR_LICENSE = 0x11999911;
+constexpr uint32_t SHIP_DESTINATIONS = 0x11AAAA11;
 } // namespace MainMenuItemID
 
 namespace ClearLicenseConfirmationMenuItemID {
@@ -57,6 +60,10 @@ namespace ProxyDestinationsMenuItemID {
 constexpr uint32_t GO_BACK = 0x77FFFF77;
 constexpr uint32_t OPTIONS = 0x77EEEE77;
 } // namespace ProxyDestinationsMenuItemID
+
+namespace ShipDestinationsMenuItemID {
+constexpr uint32_t GO_BACK = 0xDDFFFFDD;
+} // namespace ShipDestinationsMenuItemID
 
 namespace ProgramsMenuItemID {
 constexpr uint32_t GO_BACK = 0x88FFFF88;

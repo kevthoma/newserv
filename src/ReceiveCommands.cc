@@ -19,6 +19,7 @@
 #include "IPStackSimulator.hh"
 #include "ItemCreator.hh"
 #include "Loggers.hh"
+#include "NetworkAddresses.hh"
 #include "PSOProtocol.hh"
 #include "ProxyCommands.hh"
 #include "ReceiveSubcommands.hh"
@@ -135,6 +136,12 @@ static void send_main_menu(std::shared_ptr<Client> c) {
       MenuItem::Flag::INVISIBLE_ON_BB;
   main_menu->items.emplace_back(MainMenuItemID::PROXY_DESTINATIONS, "Proxy server",
       "Connect to another\nserver through the\nproxy", proxy_destinations_menu_item_flags);
+
+  // Corellia: BB-only ship menu. Hidden entirely unless ShipDestinations-BB is configured.
+  if (!s->data->ship_destinations_bb.empty()) {
+    main_menu->items.emplace_back(MainMenuItemID::SHIP_DESTINATIONS, "Ships",
+        "Change to another\nCorellia ship", MenuItem::Flag::BB_ONLY);
+  }
 
   main_menu->items.emplace_back(MainMenuItemID::DOWNLOAD_QUESTS, "Download quests",
       "Download quests", MenuItem::Flag::INVISIBLE_ON_DC_PROTOS | MenuItem::Flag::INVISIBLE_ON_PC_NTE | MenuItem::Flag::INVISIBLE_ON_BB);
@@ -2575,6 +2582,10 @@ static asio::awaitable<void> on_10_main_menu(std::shared_ptr<Client> c, uint32_t
       send_proxy_destinations_menu(c);
       break;
 
+    case MainMenuItemID::SHIP_DESTINATIONS:
+      send_menu(c, s->data->ship_destinations_menu_bb);
+      break;
+
     case MainMenuItemID::DOWNLOAD_QUESTS: {
       send_quest_categories_menu(c, QuestMenuType::DOWNLOAD, Episode::NONE);
       break;
@@ -2718,6 +2729,36 @@ static void on_10_proxy_options(std::shared_ptr<Client> c, uint32_t item_id) {
       return;
   }
   send_menu(c, proxy_options_menu_for_client(c));
+}
+
+// Corellia: hand a BB client off to another Corellia server ("ship").
+//
+// This is deliberately NOT the proxy. The proxy relays a session, which is why it cannot work on BB -- BB uses
+// different handlers for the data-server phase, so there is no point at which a list can be offered. Here the client
+// is already logged in and sitting at the main menu (it gets here via 0xA0, the "Change Ship" counter action), so we
+// can simply tell it to reconnect elsewhere with a 19 command. It then re-runs its OWN login against the destination,
+// including character select, using that server's accounts and characters. Nothing is shared between the two.
+//
+// The player therefore needs an account with the same credentials on the destination, or the login will fail there.
+static void on_10_ship_destinations(std::shared_ptr<Client> c, uint32_t item_id) {
+  if (item_id == ShipDestinationsMenuItemID::GO_BACK) {
+    send_main_menu(c);
+    return;
+  }
+
+  auto s = c->require_server_state();
+  const std::pair<std::string, uint16_t>* dest = nullptr;
+  try {
+    dest = &s->data->ship_destinations_bb.at(item_id);
+  } catch (const std::out_of_range&) {
+  }
+
+  if (!dest) {
+    send_message_box(c, "$C6No such ship exists.");
+    c->channel->disconnect();
+    return;
+  }
+  send_reconnect(c, address_for_string(dest->first.c_str()), dest->second);
 }
 
 static asio::awaitable<void> on_10_proxy_destinations(std::shared_ptr<Client> c, uint32_t item_id) {
@@ -3067,6 +3108,9 @@ static asio::awaitable<void> on_10(std::shared_ptr<Client> c, Channel::Message& 
       break;
     case MenuID::PROXY_DESTINATIONS:
       co_await on_10_proxy_destinations(c, base_cmd.item_id);
+      break;
+    case MenuID::SHIP_DESTINATIONS:
+      on_10_ship_destinations(c, base_cmd.item_id);
       break;
     case MenuID::GAME:
       on_10_game_menu(c, base_cmd.item_id, std::move(password));

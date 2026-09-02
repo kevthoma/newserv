@@ -1073,6 +1073,30 @@ void DataIndex::load_config_early() {
   this->proxy_destinations_menu_gc = generate_proxy_destinations_menu(this->proxy_destinations_gc, "ProxyDestinations-GC");
   this->proxy_destinations_menu_xb = generate_proxy_destinations_menu(this->proxy_destinations_xb, "ProxyDestinations-XB");
 
+  // Corellia: BB ship menu. Same shape as the proxy menu above, but the selection issues a 19 reconnect instead of
+  // starting a relay -- see on_10_ship_destinations. Absent/empty key leaves the menu off entirely.
+  {
+    auto ret = std::make_shared<Menu>(MenuID::SHIP_DESTINATIONS, "Ships");
+    this->ship_destinations_bb.clear();
+    try {
+      std::map<std::string, const phosg::JSON&> sorted_jsons;
+      for (const auto& it : this->config_json->at("ShipDestinations-BB").as_dict()) {
+        sorted_jsons.emplace(it.first, *it.second);
+      }
+      ret->items.emplace_back(ShipDestinationsMenuItemID::GO_BACK, "Go back", "Return to the\nmain menu", 0);
+      uint32_t item_id = 0;
+      for (const auto& item : sorted_jsons) {
+        const std::string& netloc_str = item.second.as_string();
+        const std::string& description = "$C7Connect to:\n$C6" + netloc_str;
+        ret->items.emplace_back(item_id, item.first, description, 0);
+        this->ship_destinations_bb.emplace_back(phosg::parse_netloc(netloc_str));
+        item_id++;
+      }
+    } catch (const std::out_of_range&) {
+    }
+    this->ship_destinations_menu_bb = ret;
+  }
+
   try {
     const std::string& netloc_str = this->config_json->get_string("ProxyDestination-Patch");
     this->proxy_destination_patch = phosg::parse_netloc(netloc_str);

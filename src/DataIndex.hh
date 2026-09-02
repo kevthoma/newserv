@@ -298,6 +298,10 @@ struct DataIndex {
   std::vector<std::pair<std::string, uint16_t>> proxy_destinations_xb;
   std::optional<std::pair<std::string, uint16_t>> proxy_destination_patch;
   std::optional<std::pair<std::string, uint16_t>> proxy_destination_bb;
+  // Corellia: BB "ship" menu. Unlike the proxy (which relays), selecting one of these sends the client a 19
+  // reconnect command, so it re-runs its own login against that server. Off unless ShipDestinations-BB is set.
+  std::shared_ptr<const Menu> ship_destinations_menu_bb;
+  std::vector<std::pair<std::string, uint16_t>> ship_destinations_bb;
   std::string welcome_message;
   std::string pc_patch_server_message;
   std::string bb_patch_server_message;

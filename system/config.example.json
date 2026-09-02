@@ -151,6 +151,19 @@
   // destination.
   // "ProxyDestination-BB": "",
 
+  // Corellia: other Corellia servers ("ships") a BB client can hop to from the main menu, which is also where the
+  // lobby counter's Change Ship action lands. Entries are "name": "address:port", pointing at the destination's
+  // bb-data1 port. Empty or absent => the Ships menu does not appear at all.
+  //
+  // Unlike the proxy above, this does NOT relay the session: the client is sent a 19 reconnect and re-runs its own
+  // login against the destination, so it uses THAT server's accounts and characters. Nothing is shared between the
+  // two servers, and the player needs an account with the same credentials on both.
+  //
+  // The address must be one the CLIENT can reach, and is currently parsed as a literal IPv4 address (no DNS).
+  // "ShipDestinations-BB": {
+  //   "Coronet": "192.168.1.16:12000",
+  // },
+
   // The server automatically pings clients if they haven't sent anything for a while to make sure they're still alive.
   // This option specifies how long a client must be idle for the server to send a ping.
   "ClientPingInterval": 30000000, // 30 seconds
