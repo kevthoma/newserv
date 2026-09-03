@@ -594,7 +594,7 @@ std::shared_ptr<PSOBBCharacterFile> Client::character_file(bool allow_load, bool
     }
     this->load_all_files();
     if (!this->character_data) {
-      throw std::runtime_error("none of the corresponding character files exist");
+      throw Client::no_character_file();
     }
   }
   return this->character_data;

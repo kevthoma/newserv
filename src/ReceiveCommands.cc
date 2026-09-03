@@ -1556,7 +1556,25 @@ static asio::awaitable<void> on_93_BB(std::shared_ptr<Client> c, Channel::Messag
   if (c->bb_connection_phase >= 0x04) {
     // This means the client is done with the data server phase and is in the game server phase; we should send the
     // ship select menu or a lobby join command.
-    co_await on_login_complete(c);
+    //
+    // Corellia: a client only reaches this phase having already chosen a character, so its slot normally exists here.
+    // The exception is a ship hand-off (see ShipDestinations-BB): the client keeps the slot INDEX it picked on the
+    // other ship, and that slot may be empty on this server. Left alone, loading throws and the client shows a bare
+    // "error 100" with nothing to act on. Answer it explicitly instead. We catch rather than stat the file so the
+    // loader's own fallbacks (legacy .nsc, etc.) still get their say -- only a genuine load failure lands here.
+    try {
+      co_await on_login_complete(c);
+    } catch (const Client::no_character_file&) {
+      c->log.info_f("No character in slot {} for {} on this ship; refusing the hand-off",
+          c->bb_character_index, c->login->bb_license->username);
+      send_message_box(c, std::format(
+          "$C6No character in slot {}$C7 on this ship.\n\n"
+          "Ship changes keep the slot you picked, not the character. Choose a slot that also has a character "
+          "here, or create one on this ship first.",
+          c->bb_character_index + 1));
+      c->channel->disconnect();
+      co_return;
+    }
 
   } else if (s->data->hide_download_commands) {
     // The BB data server protocol is fairly well-understood and has some large commands, so we omit data logging for

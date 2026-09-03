@@ -34,6 +34,14 @@ struct GetPlayerInfoResult {
 
 class Client : public std::enable_shared_from_this<Client> {
 public:
+  // Thrown when the selected BB character slot has no character on this server. Its own type (rather
+  // than a bare runtime_error) so on_93_BB can answer it specifically -- it is the expected outcome of
+  // a ship hand-off (ShipDestinations-BB) into a slot that is empty here, not a server fault.
+  class no_character_file : public std::runtime_error {
+  public:
+    no_character_file() : runtime_error("none of the corresponding character files exist") {}
+  };
+
   enum class Flag : uint64_t {
     // clang-format off
 
