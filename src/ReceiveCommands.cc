@@ -1568,9 +1568,13 @@ static asio::awaitable<void> on_93_BB(std::shared_ptr<Client> c, Channel::Messag
       c->log.info_f("No character in slot {} for {} on this ship; refusing the hand-off",
           c->bb_character_index, c->login->bb_license->username);
       send_message_box(c, std::format(
+          // The client hard-wraps this box at ~73 columns and is not word-aware, so it will split a word in
+          // half if we let it. Break the lines ourselves and keep each one comfortably under that.
           "$C6No character in slot {}$C7 on this ship.\n\n"
-          "Ship changes keep the slot you picked, not the character. Choose a slot that also has a character "
-          "here, or create one on this ship first.",
+          "Ship changes keep the slot you picked,\n"
+          "not the character.\n\n"
+          "Pick a slot that also has a character here,\n"
+          "or create one on this ship first.",
           c->bb_character_index + 1));
       c->channel->disconnect();
       co_return;
