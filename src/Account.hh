@@ -78,6 +78,14 @@ struct Account {
   };
   enum class UserFlag : uint32_t {
     DISABLE_DROP_NOTIFICATION_BROADCAST = 0x00000001,
+    // Corellia: this account is a sandbox account -- cheats and every quest, quarantined from normal
+    // play. It lives in user_flags rather than in Flag on purpose. Flag::ROOT is 0x7FFFFFFF, so it
+    // sets EVERY bit from 0 to 30; a quarantine bit placed there would be set on every root account
+    // and would silently confine the admins. user_flags is untouched by ROOT.
+    //
+    // It is also deliberately NOT the same thing as CHEAT_ANYWHERE. Admins hold that flag so they can
+    // help in a live game; being allowed to cheat and being quarantined are separate statements.
+    SANDBOX = 0x00000002,
   };
 
   // account_id is also the account's guild card number

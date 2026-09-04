@@ -1491,8 +1491,14 @@ void send_game_menu_t(std::shared_ptr<Client> c, bool is_spectator_team_list, bo
 
   std::set<std::shared_ptr<const Lobby>, bool (*)(const std::shared_ptr<const Lobby>&, const std::shared_ptr<const Lobby>&)> games(Lobby::compare_shared);
   bool client_has_debug = c->check_flag(Client::Flag::DEBUG_ENABLED);
+  // Corellia: sandbox games are hidden from normal players and vice versa. This is presentation only
+  // -- the enforcement is Lobby::join_error_for_client -- but a game you can see and never join is
+  // worse than one you never see. Deliberately NOT bypassed by client_has_debug, unlike the terms
+  // around it: the quarantine should look the same to everyone.
+  bool client_is_sandbox = c->login && c->login->account->check_user_flag(Account::UserFlag::SANDBOX);
   for (std::shared_ptr<Lobby> l : s->all_lobbies()) {
     if (l->is_game() &&
+        (l->check_flag(Lobby::Flag::SANDBOX) == client_is_sandbox) &&
         (client_has_debug || l->version_is_allowed(c->version())) &&
         (client_has_debug || (l->check_flag(Lobby::Flag::IS_CLIENT_CUSTOMIZATION) == c->check_flag(Client::Flag::IS_CLIENT_CUSTOMIZATION))) &&
         (l->check_flag(Lobby::Flag::IS_SPECTATOR_TEAM) == is_spectator_team_list) &&

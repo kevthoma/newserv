@@ -619,6 +619,20 @@ Lobby::JoinError Lobby::join_error_for_client(std::shared_ptr<Client> c, const s
     return JoinError::VERSION_CONFLICT;
   }
   if (this->is_game()) {
+    // Corellia: the sandbox quarantine. Sandbox accounts have cheats and every quest, so anything they
+    // make must not reach normal play -- and every way an item can move between players (dropping it,
+    // and the trade window, which is refused outside a game) is scoped to a game. Gating games is
+    // therefore the whole boundary; social lobbies are deliberately still shared, since nothing can
+    // change hands in one.
+    //
+    // Placed FIRST and checked unconditionally on purpose. Every test below is skippable -- by
+    // DEBUG_ENABLED, or by FREE_JOIN_GAMES -- because they are conveniences. This one is a
+    // quarantine, so neither may lift it. It also fails closed: a client with no login is treated as
+    // not-sandboxed and so cannot enter a sandbox game.
+    bool client_is_sandbox = c->login && c->login->account->check_user_flag(Account::UserFlag::SANDBOX);
+    if (this->check_flag(Flag::SANDBOX) != client_is_sandbox) {
+      return JoinError::SANDBOX_MISMATCH;
+    }
     if (this->check_flag(Flag::QUEST_SELECTION_IN_PROGRESS)) {
       return JoinError::QUEST_SELECTION_IN_PROGRESS;
     }
