@@ -161,11 +161,11 @@
   //
   // The address must be one the CLIENT can reach, and is currently parsed as a literal IPv4 address (no DNS).
   //
-  // A hand-off carries the slot INDEX the player picked, not the character. If that slot is empty on the
-  // destination, the destination sends the client back through its own data server phase so the player can
-  // create a character there -- see the empty-slot bounce in on_93_BB. That is capped at one bounce per
-  // account per two minutes; a second empty-slot arrival inside that window gets an explanatory message box
-  // and a disconnect instead, so a client that ignores the bounce cannot be put into a reconnect loop.
+  // A hand-off carries the slot INDEX the player picked, not the character, so the destination needs a
+  // character already sitting in that slot. It cannot offer to create one: character selection lives in the
+  // data server phase and a handed-off client arrives past it, at connection phase >= 0x04. Sending it back
+  // there was built and tested in game on 2026-09-03 and the client ignores it, so an empty slot gets an
+  // explanatory message box and a disconnect. Seed characters onto a ship from outside the game instead.
   // "ShipDestinations-BB": {
   //   "Coronet": "192.168.1.16:12000",
   // },

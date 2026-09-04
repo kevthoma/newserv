@@ -1435,41 +1435,6 @@ static asio::awaitable<void> on_9E_XB(std::shared_ptr<Client> c, Channel::Messag
   co_return;
 }
 
-// Corellia: loop guard for the ship hand-off's empty-slot bounce (used in on_93_BB).
-//
-// The bounce asks the CLIENT to restart its login, and the client's connection phase is driven by the
-// client, not by us -- so we cannot prove from here that it will come back at phase 0x00 rather than at
-// 0x04 with the same empty slot again. Bouncing unconditionally would therefore risk an endless
-// reconnect loop, which is exactly the objection that kept this fix parked.
-//
-// So each account may be bounced at most once per BOUNCE_COOLDOWN. A second empty-slot arrival inside
-// that window falls through to the message box and disconnect -- the behaviour this replaced. The loop
-// is impossible by construction, and the worst case is the old behaviour plus one extra reconnect.
-//
-// It also turns the open question into a measurement: "bouncing to character select" followed by the
-// player reaching character select means it works; that line followed by "the bounce did not take"
-// means the client ignored it, and the answer is in the log either way.
-//
-// Safe as a plain map with no locking: the server runs one asio io_context on one thread (Main.cc), so
-// all command handlers are serialized. Bounded by eviction on every call, so it cannot grow unwatched.
-static constexpr uint64_t BOUNCE_COOLDOWN_USECS = 120000000; // 2 minutes
-static std::unordered_map<uint32_t, uint64_t> bb_last_character_select_bounce_usecs;
-
-static bool should_bounce_to_character_select(uint32_t account_id) {
-  uint64_t now = phosg::now();
-  for (auto it = bb_last_character_select_bounce_usecs.begin(); it != bb_last_character_select_bounce_usecs.end();) {
-    if (now - it->second > BOUNCE_COOLDOWN_USECS) {
-      it = bb_last_character_select_bounce_usecs.erase(it);
-    } else {
-      ++it;
-    }
-  }
-  if (bb_last_character_select_bounce_usecs.contains(account_id)) {
-    return false;
-  }
-  bb_last_character_select_bounce_usecs.emplace(account_id, now);
-  return true;
-}
 
 static asio::awaitable<void> on_93_BB(std::shared_ptr<Client> c, Channel::Message& msg) {
   const auto& base_cmd = check_size_t<C_LoginBase_BB_93>(msg.data, 0xFFFF);
@@ -1601,24 +1566,16 @@ static asio::awaitable<void> on_93_BB(std::shared_ptr<Client> c, Channel::Messag
     try {
       co_await on_login_complete(c);
     } catch (const Client::no_character_file&) {
-      uint32_t account_id = c->login->account->account_id;
-      if (should_bounce_to_character_select(account_id)) {
-        // Send the client back through the data server phase, which is the only place BB offers character
-        // selection and creation. It cannot be reached from here directly: this client is at connection
-        // phase >= 0x04 and on_E3_BB only serves slot previews at phase 0x00. The lever we do have is the
-        // Guild Card number -- the first-login path above keys on it being 0 -- so we report 0 and reconnect.
-        // The client then re-runs its own login from the top and lands on character select, where it can
-        // create a character on THIS ship.
-        c->log.info_f("No character in slot {} for {} on this ship; bouncing to character select",
-            c->bb_character_index, c->login->bb_license->username);
-        send_client_init_bb(c, 0, true);
-        send_reconnect(c, s->data->connect_address_for_client(c), s->data->name_to_port_config.at("bb-data1").port);
-        co_return;
-      }
-
-      // We already bounced this account moments ago and it is STILL arriving with an empty slot, which means
-      // the bounce did not take. Say so plainly rather than bouncing again -- see the guard's comment.
-      c->log.info_f("No character in slot {} for {} on this ship, and the bounce did not take; refusing the hand-off",
+      // Tempting idea, tested in game on 2026-09-03 and it does NOT work: bounce the client back to
+      // character select so it can create a character on this ship. Character selection lives in the data
+      // server phase, and this client is at connection phase >= 0x04. Reporting guild_card_number 0 in the
+      // 00E6 -- the condition the first-login path keys on -- makes no difference: the client reconnects
+      // within the same second and returns at the SAME phase with the SAME slot. That path's own comment
+      // says the trick applies "during the data server phase", and the phase belongs to the client and does
+      // not run backwards. bb_client_config is no help either; it carries the client's version string.
+      // So a BB client can only create characters on the server its own config points at, and seeding a
+      // character onto a destination ship has to come from outside the game (the portal copies .psochar).
+      c->log.info_f("No character in slot {} for {} on this ship; refusing the hand-off",
           c->bb_character_index, c->login->bb_license->username);
       send_message_box(c, std::format(
           // The client hard-wraps this box at ~73 columns and is not word-aware, so it will split a word in

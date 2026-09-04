@@ -628,20 +628,12 @@ static void scramble_bb_security_data(parray<uint8_t, 0x28>& data, uint8_t which
 }
 
 void send_client_init_bb(std::shared_ptr<Client> c, uint32_t error_code) {
-  send_client_init_bb(c, error_code, false);
-}
-
-// force_guild_card_number_zero exists for one caller: the ship hand-off's empty-slot bounce (see on_93_BB).
-// Telling the client its Guild Card number is 0 makes its NEXT 93 report 0, which is the condition the
-// first-login path keys on -- so the client re-runs the data server phase, which is where character
-// selection and creation live. Nothing else should pass true here.
-void send_client_init_bb(std::shared_ptr<Client> c, uint32_t error_code, bool force_guild_card_number_zero) {
   S_ClientInit_BB_00E6 cmd;
   cmd.error_code = error_code;
   cmd.player_tag = 0x00010000;
   if (c->login) {
     auto team = c->team();
-    cmd.guild_card_number = force_guild_card_number_zero ? 0 : c->login->account->account_id;
+    cmd.guild_card_number = c->login->account->account_id;
     cmd.security_token = team ? team->team_id : 0;
   } else {
     cmd.guild_card_number = 0xFFFFFFFF;

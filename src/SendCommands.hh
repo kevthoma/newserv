@@ -190,8 +190,6 @@ void send_pc_console_split_reconnect(
     std::shared_ptr<Client> c, uint32_t address, uint16_t pc_port, uint16_t console_port);
 
 void send_client_init_bb(std::shared_ptr<Client> c, uint32_t error);
-// Overload used only by the ship hand-off's empty-slot bounce; see the definition for why.
-void send_client_init_bb(std::shared_ptr<Client> c, uint32_t error, bool force_guild_card_number_zero);
 void send_system_file_bb(std::shared_ptr<Client> c);
 void send_player_preview_bb(std::shared_ptr<Client> c, int8_t character_index, const PlayerDispDataV4Preview* preview);
 void send_accept_client_checksum_bb(std::shared_ptr<Client> c);
