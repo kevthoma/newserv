@@ -1564,7 +1564,21 @@ void send_game_menu_t(std::shared_ptr<Client> c, bool is_spectator_team_list, bo
         e.flags |= 0x04;
       }
     }
-    e.name.encode(l->name, c->language());
+    // Corellia: mark sandbox games in the list. The protocol has no room for another column -- this
+    // entry is a fixed-size struct whose only text is a 16-character name -- so the marker goes in
+    // the name. It is built here, per viewer, rather than stored on the lobby, so l->name stays the
+    // name the player actually typed.
+    //
+    // Shown to everyone on purpose. For a normal player it explains WHY the entry is greyed out,
+    // which greying alone cannot say (full? level? mode?); for a sandbox player it confirms which
+    // games are theirs. A label that changed depending on who was looking would be worse.
+    //
+    // encode() truncates at 16, so a long name loses its tail rather than the marker.
+    if (l->check_flag(Lobby::Flag::SANDBOX)) {
+      e.name.encode("[S] " + l->name, c->language());
+    } else {
+      e.name.encode(l->name, c->language());
+    }
   }
 
   send_command_vt(c, is_spectator_team_list ? 0xE6 : 0x08, entries.size() - 1, entries);
