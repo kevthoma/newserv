@@ -629,6 +629,11 @@ Lobby::JoinError Lobby::join_error_for_client(std::shared_ptr<Client> c, const s
     // DEBUG_ENABLED, or by FREE_JOIN_GAMES -- because they are conveniences. This one is a
     // quarantine, so neither may lift it. It also fails closed: a client with no login is treated as
     // not-sandboxed and so cannot enter a sandbox game.
+    //
+    // Returning an error here is also all the presentation this needs: send_game_menu_t greys out any
+    // BB game whose join_error_for_client is not ALLOWED, so a mismatched game shows in the list as
+    // unselectable rather than vanishing. That is deliberate -- an invisible game reads as a bug,
+    // a greyed one reads as a rule.
     bool client_is_sandbox = c->login && c->login->account->check_user_flag(Account::UserFlag::SANDBOX);
     if (this->check_flag(Flag::SANDBOX) != client_is_sandbox) {
       return JoinError::SANDBOX_MISMATCH;
