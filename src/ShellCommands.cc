@@ -327,6 +327,8 @@ uint32_t parse_account_user_flags(const std::string& user_flags_str) {
       // Nothing to do
     } else if (token_upper == "DISABLE_DROP_NOTIFICATION_BROADCAST") {
       ret |= static_cast<uint32_t>(Account::UserFlag::DISABLE_DROP_NOTIFICATION_BROADCAST);
+    } else if (token_upper == "SANDBOX") {
+      ret |= static_cast<uint32_t>(Account::UserFlag::SANDBOX);
     } else {
       throw std::runtime_error("invalid user flag name: " + token_upper);
     }
@@ -339,7 +341,11 @@ ShellCommand c_add_account(
     Add an account to the server. <parameters> is some subset of:\n\
       id=ACCOUNT-ID: preferred account ID in hex (optional)\n\
       flags=FLAGS: behaviors and permissions for the account (see below)\n\
-      user-flags=FLAGS: user-set behaviors for the account\n\
+      user-flags=FLAGS: user-set behaviors for the account. Comma-separated,\n\
+          from: NONE, DISABLE_DROP_NOTIFICATION_BROADCAST, SANDBOX. SANDBOX\n\
+          quarantines the account: it may only join games created by other\n\
+          sandbox accounts, and they may only join its games. Unlike the\n\
+          flags below, these are NOT included in ROOT\n\
       ep3-current-meseta=MESETA: Episode 3 Meseta value\n\
       ep3-total-meseta=MESETA: Episode 3 total Meseta ever earned\n\
       temporary: marks the account as temporary; it is not saved to disk and\n\

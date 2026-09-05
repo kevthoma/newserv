@@ -2812,6 +2812,11 @@ static void on_10_game_menu(std::shared_ptr<Client> c, uint32_t item_id, const s
     case Lobby::JoinError::NO_ACCESS_TO_QUEST:
       send_lobby_message_box(c, "$C7You don't have access\nto the quest in progress\nin this game, or there\nis no space for another\nplayer in the quest.");
       break;
+    case Lobby::JoinError::SANDBOX_MISMATCH:
+      // Both directions land here, so the wording has to be true of both: a sandbox account bouncing
+      // off a normal game, and a normal account bouncing off a sandbox one.
+      send_lobby_message_box(c, "$C7Sandbox and normal\ngames are kept apart.\nYou can only join games\nmade by players in the\nsame mode as you.");
+      break;
     default:
       send_lobby_message_box(c, "$C7You cannot join this\ngame.");
       break;
@@ -4610,6 +4615,11 @@ std::shared_ptr<Lobby> create_game_generic(
   }
   if (creator_c->check_flag(Client::Flag::IS_CLIENT_CUSTOMIZATION)) {
     game->set_flag(Lobby::Flag::IS_CLIENT_CUSTOMIZATION);
+  }
+  // Corellia: a game inherits its creator's sandbox status, and keeps it for life. See the quarantine
+  // check in Lobby::join_error_for_client.
+  if (creator_c->login && creator_c->login->account->check_user_flag(Account::UserFlag::SANDBOX)) {
+    game->set_flag(Lobby::Flag::SANDBOX);
   }
 
   while (game->floor_item_managers.size() < 0x12) {

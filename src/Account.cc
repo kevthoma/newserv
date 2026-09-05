@@ -347,6 +347,9 @@ std::string Account::str() const {
     if (this->check_user_flag(UserFlag::DISABLE_DROP_NOTIFICATION_BROADCAST)) {
       user_flags_str += "DISABLE_DROP_NOTIFICATION_BROADCAST,";
     }
+    if (this->check_user_flag(UserFlag::SANDBOX)) {
+      user_flags_str += "SANDBOX,";
+    }
     if (user_flags_str.empty()) {
       user_flags_str = "none";
     } else if (user_flags_str.ends_with(",")) {
