@@ -6,7 +6,7 @@ name: Corellia GHCR
 on:
   workflow_dispatch:            # build on demand
   push:
-    branches: [ master ]        # and whenever master moves (e.g. after syncing upstream)
+    branches: [ master, canary ]  # master moves (e.g. upstream sync); canary is the testing line
     paths-ignore:
       - '**.md'
 
@@ -42,8 +42,12 @@ jobs:
             # any later container recreate, silently. Same hole the client installers already had
             # closed ("stage and promote only after passing"); this is the Docker equivalent.
             type=raw,value=latest,enable={{is_default_branch}}
+            # :canary from the canary branch only, by the same reasoning as the guard above --
+            # corellia-canary pulls this tag, so no other ref may claim it. canary is the testing
+            # line that leads master: it is where a change is soaked before :latest moves.
+            type=raw,value=canary,enable=${{ github.ref_name == 'canary' }}
             # Always tagged by commit, so a branch CAN be built and tested by sha without
-            # ever claiming to be latest.
+            # ever claiming to be latest or canary.
             type=sha
 
       - name: Set up Buildx
