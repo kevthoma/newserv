@@ -57,6 +57,10 @@ The stock scripts always do this: across q204/q219/q223/q224, all 8 same-speaker
 change speaker (Paganini `0xA5` ↔ Hopkins `0xA1`). Any new dialogue that follows
 the same speaker needs one.
 
+Confirmed on the canary 2026-09-16 (commit `f9439fab`): with the `sync`, page 1
+renders and the transition from the greeting is ~250 ms like any other page
+change, where before it was 2.2 s of empty screen and a lost page.
+
 It is dialogue only — nothing is unlocked and no flag is written. The hint hangs
 off the greeting's fall-through into the menu block, not the menu block itself,
 so it plays once per visit rather than after every exchange.
