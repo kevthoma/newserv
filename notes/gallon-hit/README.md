@@ -33,13 +33,29 @@ search unchanged; the only server edits are the 3x payment amounts and the
 The Photon service is gated behind two quest-counter bits, and stock the shop
 just shows a shorter menu with no explanation — a player who has heard this
 shop sells percentages concludes it is broken. `patch_hint.py` adds a line from
-Gallon saying why, and pointing at the quest that opens it:
+Paganini saying why, and pointing at the quest that opens it:
 
-| State | Menu | Gallon says |
+| State | Menu | Paganini says |
 |---|---|---|
-| neither Tower | Exchange for an item / Exit | do **The East Tower** for Paganini first |
-| East Tower only | + Modify ES Weapon | finish **The West Tower** |
+| neither Tower | Exchange for an item / Exit | lend me a hand in **The East Tower** |
+| East Tower only | + Modify ES Weapon | help me once more in **The West Tower** |
 | both | + Enhance weapon's Photon | nothing |
+
+**Paganini is the speaker, not Gallon.** The quest is titled "Gallon's Shop", but
+its Photon Drop services belong to Paganini, who introduces himself in the back
+room ("My name is Paganini.") with his son Hopkins; Gallon is the other merchant
+in the quest (points, roulette, CDs). Paganini is also whose errands in the
+Towers set the flags, so the hint is first person about his own errands. The
+first version got this wrong and had him refer to himself in the third person.
+
+**Each hint message starts with a `sync`.** The hint is Paganini speaking again
+straight after his own greeting's `message_end`, and without a frame between
+them the first page is silently lost — recorded at 13.5 fps on the canary, the
+greeting's bubble closed, nothing was on screen for 2.2 s, then page 2 appeared.
+The stock scripts always do this: across q204/q219/q223/q224, all 8 same-speaker
+`message_end` → `message` transitions have a `sync`, and all 24 without one
+change speaker (Paganini `0xA5` ↔ Hopkins `0xA1`). Any new dialogue that follows
+the same speaker needs one.
 
 It is dialogue only — nothing is unlocked and no flag is written. The hint hangs
 off the greeting's fall-through into the menu block, not the menu block itself,
@@ -72,8 +88,8 @@ newserv assemble-quest-script q204-final.txt q204-bb-e.bin
 
 The two patches are independent and compose in either order; the shipped files
 have both. `patch_hint.py` carries English and Japanese text and picks by the
-script's `.language`, matching Gallon's plain voice in English and his archaic
-one (`わし` / `そなた`) in both Japanese scripts.
+script's `.language`, matching Paganini's theatrical voice in English and his
+archaic one (`わし` / `そなた`) in both Japanese scripts.
 
 Same for `q204-bb-j.bin.orig` and `q219-bb-j.bin.orig` with `--language=J`.
 The stock files are kept next to the patched ones as `.orig`.
@@ -103,7 +119,7 @@ the disassembly of the `.orig`.
   *type*). Harmless while Hit could only arrive from drops; wrong once the shop
   can put Hit in slot 3.
 
-English text for the new menu entry and Gallon's price pitch is applied only to
+English text for the new menu entry and Paganini's price pitch is applied only to
 the English script; other languages get the menu entry with the original pitch.
 
 ## Tower quest rewards
