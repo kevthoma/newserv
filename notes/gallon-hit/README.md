@@ -157,5 +157,5 @@ Round-tripping the unmodified file produces no differences at all.
 The quest files live in the server's `system/` directory, which is a bind mount
 on the host and is *not* refreshed by a new image — copy the three `.bin` files
 to `system/quests/shops/` and the four Tower files to `system/quests/tower/` on
-the host, then run `reload quest-index`. The server change needs a rebuilt
+the host, then run `reload quests` (newserv's own README says `reload quest-index`, which this build rejects as an invalid data type). The server change needs a rebuilt
 image; the quest changes alone do not.
