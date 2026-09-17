@@ -1,10 +1,18 @@
 # -*- coding: utf-8 -*-
-"""Tell the player why Gallon's Photon service isn't showing.
+"""Tell the player why Paganini's Photon service isn't showing.
+
+Quest 204 is titled "Gallon's Shop", but the Photon Drop services -- item
+exchange, ES weapon specials, Photon attribute upgrades -- belong to PAGANINI,
+who introduces himself in the back room ("My name is Paganini.") with his son
+Hopkins. Gallon is the other merchant in the quest (points, roulette, CDs).
+Paganini is also the NPC whose errands in The East/West Tower set the unlock
+flags, so the hint is spoken by him, in the first person, about his own
+errands.
 
 The shop silently drops menu entries when the player hasn't unlocked them --
 no explanation, just a shorter list -- so someone who has heard the shop sells
-percentages concludes it is broken. This adds a line from Gallon pointing at
-the Tower quests that set the flags.
+percentages concludes it is broken. This adds a line pointing at the Tower
+quests that set the flags.
 
 Runs on the same --reassembly disassembly as patch_hit.py, and after it:
 
@@ -18,41 +26,34 @@ import io
 import re
 import sys
 
-FACE = "0x000000A5"  # Gallon's message-box portrait, as used elsewhere in the quest
+FACE = "0x000000A5"  # Paganini's speaker id; Hopkins is 0xA1
 COL = 32
 
-# Gallon speaks plainly in English and in an archaic register in Japanese
-# ("わし" / "そなた" / "〜なろう"), in both q204-bb-j and q219-bb-j. Each entry is
-# a list of message pages; the first becomes `message`, the rest `add_msg`.
+# Paganini is theatrical in English ("This could be a very profitable opportunity
+# for you too...") and archaic in Japanese ("わし" / "そなた" / "〜なろう"), in both
+# q204-bb-j and q219-bb-j. Each entry is a list of message pages; the first becomes
+# `message`, the rest `add_msg`. Keep lines to ~24 half-width / ~13 full-width
+# characters so the bubble does not wrap them.
 TEXT = {
     "E": {
         "none": [
-            r'"I do run other services\nhere. Only for those\n<color 5>Paganini<color 0> vouches for."',
-            r'"He\'s up at the Control\nTower. Help him out in\n<color 5>The East Tower<color 0> first."',
+            r'"I have other services,\ntoo... but only for\nhunters I can trust."',
+            r'"Lend me a hand in\n<color 5>The East Tower<color 0>,\nand we\'ll talk again."',
         ],
         "west": [
-            r'"ES Weapons I can modify\nfor you now. Photon\nattributes? Not yet."',
-            r'"<color 5>Paganini<color 0> owes me one\nmore word on you. Finish\n<color 5>The West Tower<color 0> for him."',
+            r'"You helped me in the\n<color 5>East Tower<color 0>. I haven\'t\nforgotten."',
+            r'"Help me once more in\n<color 5>The West Tower<color 0>, and\nI\'ll show you the rest."',
         ],
     },
     "J": {
         "none": [
-            '"\u308f\u3057\u306b\u306f \u307b\u304b\u306b\u3082\\n'
-            '\u5546\u3044\u304c \u3042\u308b\u306e\u3060\u304c\u306a\u2026"',
-            '"<color 5>\u30d1\u30ac\u30cb\u30fc\u30cb<color 0>\u6bbf\u306e \u53e3\u5229\u304d\u304c\\n'
-            '\u306a\u304f\u3066\u306f\u306a\u3002"',
-            '"\u5fa1\u4ec1\u306f <color 5>\u5236\u5fa1\u5854<color 0>\u306b \u304a\u308b\u3002\\n'
-            '\u307e\u305a\u306f <color 5>\u6771\u5929\u306e\u5854<color 0>\u3067\\n'
-            '\u529b\u3092 \u8cb8\u3057\u3066\u3084\u308b\u304c\u3088\u3044\u3002"',
+            '"わしには ほかにも\\n商いが あるのだがな…"',
+            '"信用できる ハンターにしか\\n見せられんのだ。"',
+            '"<color 5>東天の塔<color 0>で わしに\\n力を 貸してくれたら\\nまた 話そう。"',
         ],
         "west": [
-            '"<color 5>\uff25\uff33\u30a6\u30a7\u30dd\u30f3\u306e\u6539\u9020<color 0>\u306a\u3089\\n'
-            '\u3044\u3064\u3067\u3082 \u5f15\u304d\u53d7\u3051\u3088\u3046\u3002"',
-            '"\u3060\u304c <color 5>\u30d5\u30a9\u30c8\u30f3\u5c5e\u6027\u5f37\u5316<color 0>\u306f\\n'
-            '\u307e\u3060 \u65e9\u3044\u3088\u3046\u3060\u306a\u3002"',
-            '"<color 5>\u30d1\u30ac\u30cb\u30fc\u30cb<color 0>\u6bbf\u306e \u53e3\u5229\u304d\u304c\\n'
-            '\u3044\u307e \u3072\u3068\u3064 \u305f\u308a\u306c\u3002\\n'
-            '<color 5>\u897f\u5929\u306e\u5854<color 0>\u3078 \u5411\u304b\u3046\u304c\u3088\u3044\u3002"',
+            '"<color 5>東天の塔<color 0>での 恩は\\n忘れておらんぞ。"',
+            '"<color 5>西天の塔<color 0>でも わしに\\n力を 貸してくれたら\\n残りを 見せてやろう。"',
         ],
     },
 }
@@ -83,8 +84,17 @@ class PatchError(SystemExit):
 
 
 def message_block(pages):
-    """Render one multi-page NPC message."""
-    lines = [op("arg_pushl", FACE),
+    """Render one multi-page NPC message.
+
+    Starts with a sync. The hint follows Paganini's greeting, so it is the same
+    speaker opening a new message right after message_end -- and without a frame
+    in between, the first page is silently lost (observed in game: the bubble shuts,
+    nothing shows for ~2s, then page 2 appears). Every stock script does this the
+    same way: across q204/q219/q223/q224 all 8 same-speaker message_end -> message
+    transitions have a sync between them, and all 24 without one change speaker.
+    """
+    lines = [op("sync"),
+             op("arg_pushl", FACE),
              op("arg_pushs", pages[0]),
              op("message", "... 0xA5 /* 165 */, " + pages[0])]
     for page in pages[1:]:
