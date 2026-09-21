@@ -18,20 +18,29 @@ RUN apt update && apt install -y --no-install-recommends \
 
 FROM builder AS deps
 
-ARG PHOSG_TARGET=master
-ARG RESOURCE_DASM_TARGET=master
+# Pinned, not master. Both dependencies are cloned at build time, so tracking master made every
+# image only as reproducible as upstream's last push -- resource_dasm/phosg API changes between
+# 2026-09-18 and 09-20 broke every build of this fork (AddressTranslator.cc: FileAnalysis::Function
+# has no member 'label'). These are the commits this source is known to compile against. Bump them
+# deliberately, and build the canary first. (Pinning also keeps the gha layer cache honest: the clone
+# command text now changes whenever what it fetches changes.)
+ARG PHOSG_TARGET=5368a493eb4cf2293118f8596c3c3b0e63b50550
+ARG RESOURCE_DASM_TARGET=2142f1e6f960d737cf2f9c6d07cbb283aeb106fc
 ARG BUILD_RESOURCE_DASM=true
 
-RUN git clone --depth 1 -b ${PHOSG_TARGET} https://github.com/fuzziqersoftware/phosg.git && \
-    cd phosg && \
+# `git clone -b` only accepts branch or tag names; fetching the ref directly also accepts a commit SHA.
+RUN git init -q phosg && cd phosg && \
+    git fetch -q --depth 1 https://github.com/fuzziqersoftware/phosg.git ${PHOSG_TARGET} && \
+    git checkout -q FETCH_HEAD && \
     cmake . && \
     make -j$(nproc) && \
     sudo make install
 
 RUN \
     if [ "$BUILD_RESOURCE_DASM" = "true" ] ; then \
-    git clone --depth 1 -b ${RESOURCE_DASM_TARGET} https://github.com/fuzziqersoftware/resource_dasm.git && \
-    cd resource_dasm && \
+    git init -q resource_dasm && cd resource_dasm && \
+    git fetch -q --depth 1 https://github.com/fuzziqersoftware/resource_dasm.git ${RESOURCE_DASM_TARGET} && \
+    git checkout -q FETCH_HEAD && \
     cmake . && \
     make -j$(nproc) && \
     sudo make install \
