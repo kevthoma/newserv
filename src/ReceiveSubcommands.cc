@@ -5458,12 +5458,22 @@ static void on_upgrade_weapon_attribute_bb(std::shared_ptr<Client> c, Subcommand
       throw std::runtime_error("not enough payment items present");
     }
 
+    // Corellia: Gallon's Shop (quests 204 and 219) also offers Hit, which is
+    // attribute type 5 - the same type Hit uses when it drops naturally, so
+    // the slot search below needs no special case. Hit costs 3x what an
+    // element costs and caps lower; the quest script sends the 3x counts.
+    static constexpr uint32_t HIT_ATTRIBUTE = 5;
+    static constexpr int HIT_MAX_VALUE = 90;
+    static constexpr int ELEMENT_MAX_VALUE = 100;
+    bool is_hit = (cmd.attribute == HIT_ATTRIBUTE);
+    uint32_t cost_multiplier = is_hit ? 3 : 1;
+
     int8_t attribute_amount = 0;
-    if (cmd.payment_type == 1 && cmd.payment_count == 1) {
+    if (cmd.payment_type == 1 && cmd.payment_count == 1 * cost_multiplier) {
       attribute_amount = 30;
-    } else if (cmd.payment_type == 0 && cmd.payment_count == 4) {
+    } else if (cmd.payment_type == 0 && cmd.payment_count == 4 * cost_multiplier) {
       attribute_amount = 1;
-    } else if (cmd.payment_type == 0 && cmd.payment_count == 20) {
+    } else if (cmd.payment_type == 0 && cmd.payment_count == 20 * cost_multiplier) {
       attribute_amount = 5;
     } else {
       throw std::runtime_error("unknown PD/PS expenditure");
@@ -5479,9 +5489,10 @@ static void on_upgrade_weapon_attribute_bb(std::shared_ptr<Client> c, Subcommand
     if (attribute_index == 0) {
       throw std::runtime_error("no available attribute slots");
     }
+    int max_attr_value = is_hit ? HIT_MAX_VALUE : ELEMENT_MAX_VALUE;
     int8_t new_attr_value = static_cast<int8_t>(item.data1[attribute_index + 1]) + attribute_amount;
-    if (new_attr_value > 100) {
-      throw std::runtime_error("bonus value exceeds 100");
+    if (new_attr_value > max_attr_value) {
+      throw std::runtime_error("bonus value exceeds maximum");
     }
 
     auto removed_payment_item = p->remove_item(
