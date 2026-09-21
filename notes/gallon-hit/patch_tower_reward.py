@@ -7,16 +7,29 @@
 
 Applies to quests 223 (The East Tower) and 224 (The West Tower).
 
-Stock, both pay 5,000 / 10,000 / 20,000 / 40,000 meseta by difficulty, on
-*every* clear and to *every* player in the party -- `set_qt_success` runs the
-difficulty switch each time the quest is completed. Meseta is worthless against
-a 999,999 cap, but Photon Drops are the actual currency, so paying the headline
-amount on every clear would turn these into the best PD faucet on the server.
+Stock, both pay 5,000 / 10,000 / 20,000 / 40,000 meseta by difficulty, on *every*
+clear and to *every* player in the party -- `set_qt_success` runs the difficulty
+switch each time the quest is completed. Meseta is worthless against a 999,999
+cap, but Photon Drops are the actual currency, so paying the headline amount on
+every clear would make these the best PD faucet on the server.
 
-So the headline amount is a first-clear bonus and repeats pay a token amount.
-"First clear" is read from the quest's own unlock flag -- the same bit Gallon's
-Shop gates the Photon service on. The quest sets that bit partway through, before
-the success handler runs, so it is sampled during quest init instead.
+So the headline amount is a FIRST-CLEAR bonus, once per difficulty per character,
+and repeats pay a token amount. "Already claimed" is one bit per difficulty in
+quest_counters[7] -- the same counter, and the same one-bit-per-difficulty
+pattern, that Government 4-5 and 8-3 use for their "cleared on <difficulty>"
+bits in its low byte. Its upper bits are unused by every stock quest (checked by
+disassembling all 335 BB scripts; the only writers of counter 7, 4-5 and 8-3,
+read-modify-write it one bit at a time).
+
+Why a counter and not a quest flag: `gset` sends 6x75, which the server FORWARDS
+to the whole party (quest flags keep everyone's quest state in sync). The reward
+runs on every player's client at once, so one player's claim could arrive at
+another before their own check and cost them their first-clear bonus. Counter
+writes (6xD2) are applied to the sender's character only and never forwarded.
+
+Why not the quest's own unlock bit (quest_counters[2] & 0x20/0x40, as an earlier
+version did): that bit is only set by Paganini's errand, not by clearing the
+quest, so a player who never did the errand read as "first clear" every time.
 """
 import io
 import re
@@ -28,13 +41,17 @@ REPEAT = [2, 4, 6, 10]
 PD_DATA1 = [0x03, 0x10, 0x00]  # Photon Drop; the stack count lives in data1[5]
 COUNT_INDEX = 5
 
-# Which quest_counters[2] bit each quest sets at the end of Paganini's errand.
-UNLOCK_BIT = {223: 0x20, 224: 0x40}
+CLAIM_COUNTER = 7
+# One "first clear claimed" bit per difficulty (Normal, Hard, Very Hard, Ultimate).
+CLAIM_MASKS = {
+    223: [0x0100, 0x0200, 0x0400, 0x0800],  # The East Tower
+    224: [0x1000, 0x2000, 0x4000, 0x8000],  # The West Tower
+}
 
-# r140-r152 hold the item being created, r153 the amount, r154 the repeat
-# amount, r155 the "cleared before" flag. Verified unused in all four scripts.
+# r140-r152 hold the item being created, r153 the amount, r154 the repeat amount,
+# r155 this difficulty's claim mask. Verified unused in all four scripts.
 R_ITEM_FIRST, R_ITEM_LAST, R_ITEM_ID = 140, 151, 152
-R_AMOUNT, R_REPEAT, R_CLEARED = 153, 154, 155
+R_AMOUNT, R_REPEAT, R_MASK = 153, 154, 155
 
 # <rN> is substituted with the register's value, so one string covers both the
 # first-clear and repeat amounts.
@@ -79,13 +96,14 @@ def main(inp, outp):
     t = io.open(inp, encoding="utf-8", newline="\n").read()
 
     quest_num = int(find1(t, r"^\.quest_num (\d+)$", "quest number").group(1))
-    if quest_num not in UNLOCK_BIT:
+    if quest_num not in CLAIM_MASKS:
         raise PatchError("PATCH FAILED: quest %d is not a Tower quest" % quest_num)
+    masks = CLAIM_MASKS[quest_num]
     lang = find1(t, r"^\.language (\w)$", "language").group(1)
     if lang not in MESSAGE:
         raise PatchError("PATCH FAILED: no reward text for language %s" % lang)
 
-    for r in range(R_ITEM_FIRST, R_CLEARED + 1):
+    for r in range(R_ITEM_FIRST, R_MASK + 1):
         if re.search(r"\br%d\b" % r, t):
             raise PatchError("PATCH FAILED: r%d is already in use by this script" % r)
 
@@ -96,8 +114,7 @@ def main(inp, outp):
     # declares one, so newserv lets them create *any* item and only warns --
     # but both already create items for Paganini's rewards through a helper
     # whose registers the callers fill in. A Photon-Drop-only mask would reject
-    # those and break the quest. Closing that hole means enumerating every item
-    # those three call sites can produce first, which is its own change.
+    # those and break the quest.
     if re.search(r"^\.allow_create_item ", t, re.M):
         raise PatchError("PATCH FAILED: quest unexpectedly declares item creation masks")
 
@@ -106,8 +123,7 @@ def main(inp, outp):
         raise PatchError("PATCH FAILED: reward line %r not found in the description" % old_reward)
     t = t.replace(old_reward, new_reward)
 
-    # -- quest init: remember whether this character had already cleared it ---
-    bit = UNLOCK_BIT[quest_num]
+    # The quest's own counter helpers: test (r0 = counter[r1] & r2 != 0) and set (counter[r1] |= r2).
     test_helper = find1(
         t,
         r"^(label\w+)@0x\w+:\n"
@@ -119,24 +135,21 @@ def main(inp, outp):
         r"  jmpi_eq\s+r3, 0x00000000, label\w+\n"
         r"  leti\s+r0, 0x00000001\n",
         "counter test helper").group(1)
-
-    # Sampled right after the quest reads its difficulty. That clobbers r0, but
-    # every path from here sets r0 before reading it. q223 returns immediately
-    # after this line; q224 makes two more calls, hence anchoring on the line
-    # itself rather than on what follows.
-    init = find1(t, r"  get_difficulty_level_v2\s+(r\d+)\n", "quest init")
-    diff_reg = init.group(1)
-    t = t[:init.end()] + "\n".join([
-        op("va_start"),
-        op("arg_pushl", "0x00000002"),
-        op("arg_pushl", "0x%08X" % bit),
-        op("va_call", test_helper),
-        op("va_end"),
-        op("let", "r%d, r0" % R_CLEARED),
-        "",
-    ]) + t[init.end():]
+    set_helper = find1(
+        t,
+        r"^(label\w+)@0x\w+:\n"
+        r"  arg_pushr\s+r1\n"
+        r"  arg_pushb\s+0x03\n"
+        r"  read_counter\s+\.\.\. r1, r3\n"
+        r"  or\s+r3, r2\n"
+        r"  arg_pushr\s+r1\n"
+        r"  arg_pushr\s+r3\n"
+        r"  write_counter\s+\.\.\. r1, r3\n"
+        r"  ret\n",
+        "counter set helper").group(1)
 
     # -- the four reward blocks ----------------------------------------------
+    diff_reg = find1(t, r"  get_difficulty_level_v2\s+(r\d+)\n", "difficulty register").group(1)
     sw = find1(t, r"  switch_jmp\s+%s, \[(label\w+), (label\w+), (label\w+), (label\w+)\]\n"
                % diff_reg, "difficulty reward switch")
     reward_labels = [sw.group(i) for i in (1, 2, 3, 4)]
@@ -153,6 +166,7 @@ def main(inp, outp):
             header,
             op("leti", "r%d, 0x%08X" % (R_AMOUNT, FIRST_CLEAR[i])),
             op("leti", "r%d, 0x%08X" % (R_REPEAT, REPEAT[i])),
+            op("leti", "r%d, 0x%08X" % (R_MASK, masks[i])),
             op("call", "label" + L["pick"]),
             op("call", "label" + L["pd"]),
             op("jmp", msg_label),
@@ -176,12 +190,23 @@ def main(inp, outp):
     new_code = "\n".join([
         "",
         "// ---- Photon Drop reward (added) -------------------------------------",
-        "// r%d = amount to pay, r%d = the repeat amount, r%d = 1 if this character"
-        % (R_AMOUNT, R_REPEAT, R_CLEARED),
-        "// had already cleared the quest (sampled during init, because the quest",
-        "// sets that flag partway through and the success handler runs after).",
+        "// r%d = first-clear amount, r%d = repeat amount, r%d = this difficulty's"
+        % (R_AMOUNT, R_REPEAT, R_MASK),
+        "// \"first clear claimed\" bit in quest_counters[%d]. If the bit is already"
+        % CLAIM_COUNTER,
+        "// set, pay the repeat amount; otherwise claim it and pay the first-clear amount.",
         "label%s@0x%s:" % (L["pick"], L["pick"]),
-        op("jmpi_eq", "r%d, 0x00000001, label%s" % (R_CLEARED, L["repeat"])),
+        op("va_start"),
+        op("arg_pushl", "0x%08X" % CLAIM_COUNTER),
+        op("arg_pushr", "r%d" % R_MASK),
+        op("va_call", test_helper),
+        op("va_end"),
+        op("jmpi_ne", "r0, 0x00000000, label%s" % L["repeat"]),
+        op("va_start"),
+        op("arg_pushl", "0x%08X" % CLAIM_COUNTER),
+        op("arg_pushr", "r%d" % R_MASK),
+        op("va_call", set_helper),
+        op("va_end"),
         op("ret"),
         "",
         "label%s@0x%s:" % (L["repeat"], L["repeat"]),
@@ -202,8 +227,8 @@ def main(inp, outp):
     t = t[:anchor.end()] + new_code + t[anchor.end():]
 
     io.open(outp, "w", encoding="utf-8", newline="\n").write(t)
-    print("quest %d (%s): first clear %s, repeats %s -> %s"
-          % (quest_num, lang, FIRST_CLEAR, REPEAT, outp))
+    print("quest %d (%s): first clear %s, repeats %s, claim bits %s in counter %d -> %s"
+          % (quest_num, lang, FIRST_CLEAR, REPEAT, ["0x%04X" % m for m in masks], CLAIM_COUNTER, outp))
 
 
 if __name__ == "__main__":
