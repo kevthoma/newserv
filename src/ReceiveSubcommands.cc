@@ -3,6 +3,7 @@
 #include <math.h>
 #include <string.h>
 
+#include <map>
 #include <memory>
 #include <phosg/Random.hh>
 #include <phosg/Strings.hh>
@@ -1218,6 +1219,72 @@ uint32_t Parsed6x70Data::get_player_flags(bool is_v3) const {
       : Parsed6x70Data::convert_player_flags(this->player_flags, is_v3);
 }
 
+// Corellia: on BB the server owns every inventory, so the 6x70 a client sends when someone joins its game is the only
+// time the server sees the client's OWN view of its inventory - and newserv replaces it with the server's copy without
+// comparing the two. Compare them here so drift is logged as a warning ("[InventorySync]") instead of only surfacing
+// later as a lost item or a disconnect. Detection only: nothing is corrected. A trade or pickup in flight at the
+// moment of the snapshot can show up as a one-off difference; the same player differing repeatedly is real.
+static void check_bb_inventory_sync(std::shared_ptr<Client> c) {
+  if ((c->version() != Version::BB_V4) || !c->last_reported_6x70 || c->has_overlay()) {
+    return;
+  }
+  auto p = c->character_file(false);
+  if (!p) {
+    return;
+  }
+  auto s = c->require_server_state();
+  const auto& limits = *s->data->item_stack_limits(c->version());
+  const auto& reported = *c->last_reported_6x70;
+
+  std::map<uint32_t, ItemData> client_items;
+  for (size_t z = 0; z < std::min<size_t>(reported.num_items, reported.items.size()); z++) {
+    client_items.emplace(reported.items[z].data.id, reported.items[z].data);
+  }
+  std::map<uint32_t, ItemData> server_items;
+  for (size_t z = 0; z < std::min<size_t>(p->inventory.num_items, p->inventory.items.size()); z++) {
+    server_items.emplace(p->inventory.items[z].data.id, p->inventory.items[z].data);
+  }
+
+  auto describe = [&](const ItemData& item) -> std::string {
+    return std::format("{} ({})", item.hex(), s->data->describe_item(c->version(), item));
+  };
+  std::vector<std::string> diffs;
+  for (const auto& [id, client_item] : client_items) {
+    auto it = server_items.find(id);
+    if (it == server_items.end()) {
+      diffs.emplace_back(std::format("only on client: {:08X} {}", id, describe(client_item)));
+      continue;
+    }
+    const auto& server_item = it->second;
+    // Compare identity and stack size only. Fields the client legitimately updates on its own between syncs (mag
+    // stats, weapon kill counters) would otherwise make every snapshot look like drift.
+    bool same_item = (client_item.primary_identifier() == server_item.primary_identifier());
+    bool same_count = (client_item.max_stack_size(limits) <= 1) || (client_item.data1[5] == server_item.data1[5]);
+    if (!same_item || !same_count) {
+      diffs.emplace_back(std::format("{:08X} differs: client {} / server {}", id, describe(client_item), describe(server_item)));
+    }
+  }
+  for (const auto& [id, server_item] : server_items) {
+    if (!client_items.count(id)) {
+      diffs.emplace_back(std::format("only on server: {:08X} {}", id, describe(server_item)));
+    }
+  }
+  if (reported.stats.meseta.load() != p->disp.stats.meseta.load()) {
+    diffs.emplace_back(std::format("Meseta differs: client {} / server {}",
+        reported.stats.meseta.load(), p->disp.stats.meseta.load()));
+  }
+
+  if (diffs.empty()) {
+    c->log.info_f("[InventorySync] Client and server inventories match ({} items)", server_items.size());
+  } else {
+    c->log.warning_f("[InventorySync] Client and server inventories differ ({} difference(s)):", diffs.size());
+    for (const auto& diff : diffs) {
+      c->log.warning_f("[InventorySync]   {}", diff);
+    }
+    c->print_inventory();
+  }
+}
+
 static void on_sync_joining_player_disp_and_inventory(std::shared_ptr<Client> c, SubcommandMessage& msg) {
   auto s = c->require_server_state();
   check_expected_loading_command(c, msg);
@@ -1277,6 +1344,12 @@ static void on_sync_joining_player_disp_and_inventory(std::shared_ptr<Client> c,
   }
 
   c->pos = c->last_reported_6x70->base.pos;
+  // A bug in the comparison must never break a player joining a game
+  try {
+    check_bb_inventory_sync(c);
+  } catch (const std::exception& e) {
+    c->log.warning_f("[InventorySync] Comparison failed: {}", e.what());
+  }
   send_game_player_state(target, c, false);
 
   // On BB, the server is expected to send 6x72 rather than the client. We just do it at the same time the client did
@@ -4235,6 +4308,53 @@ static void assert_quest_item_create_allowed(std::shared_ptr<const Lobby> l, con
   throw std::runtime_error("invalid item creation from quest");
 }
 
+// Corellia: by the time the server sees 6xCA, the client's script has already decided the item was created (the
+// opcode checks the client's own inventory and reports success before the server answers). So if the server's copy of
+// the inventory has no room, ignoring the command loses the item for good - the quest has already marked the reward
+// as paid. When that happens, put the item somewhere the player can still get it: the bank they currently have
+// selected, then the floor at their feet. The warnings log the full item either way, so an admin can recreate it if
+// even the floor item is lost.
+static void deliver_quest_item_without_inventory_room(
+    std::shared_ptr<Client> c, std::shared_ptr<Lobby> l, ItemData item) {
+  auto s = c->require_server_state();
+  const auto& limits = *s->data->item_stack_limits(c->version());
+  auto name = s->data->describe_item(c->version(), item);
+  l->log.warning_f("Player {} created quest item {} ({}), but the server has no room for it in their inventory",
+      c->lobby_client_id, item.hex(), name);
+  c->print_inventory();
+
+  // Same conditions as receiving an item by mail (6xCB): not at the bank counter, and no Battle/Challenge overlay.
+  if (!c->check_flag(Client::Flag::AT_BANK_COUNTER) && !c->has_overlay()) {
+    try {
+      c->bank_file()->add_item(item, limits);
+      std::string bank_name;
+      if (c->bb_bank_character_index < 0) {
+        bank_name = "your shared bank";
+      } else if (c->bb_bank_character_index == c->bb_character_index) {
+        bank_name = "your bank";
+      } else {
+        bank_name = std::format("character {}'s bank", c->bb_bank_character_index + 1); // $bank numbering
+      }
+      l->log.warning_f("Player {} quest item {} ({}) sent to {} (bank index {})",
+          c->lobby_client_id, item.hex(), name, bank_name, c->bb_bank_character_index);
+      send_text_message_fmt(c, "$C6Your inventory was full, so\n{}\nwas sent to {}.", name, bank_name);
+      return;
+    } catch (const std::runtime_error& e) {
+      l->log.warning_f("Player {} quest item {} could not be sent to the bank: {}", c->lobby_client_id, item.hex(), e.what());
+    }
+  }
+
+  // Last resort: drop it at the player's feet. It disappears when the game closes and anyone in the game can pick it
+  // up, so the warning above (with the item's full hex) is what makes it recoverable after that.
+  item.id = l->generate_item_id(0xFF);
+  VectorXZF pos = c->pos;
+  l->add_item(c->floor, item, pos, nullptr, nullptr, 0x00F);
+  send_drop_stacked_item_to_lobby(l, item, c->floor, pos);
+  l->log.warning_f("Player {} quest item {} ({}) dropped on the floor at {:02X}:{:g},{:g} as item {:08X}",
+      c->lobby_client_id, item.hex(), name, c->floor, pos.x, pos.z, item.id);
+  send_text_message_fmt(c, "$C6Your inventory and bank are full.\n{}\nis on the ground. Make room\nand pick it up.", name);
+}
+
 static void on_quest_create_item_bb(std::shared_ptr<Client> c, SubcommandMessage& msg) {
   const auto& cmd = msg.check_size_t<G_QuestCreateItem_BB_6xCA>();
   auto s = c->require_server_state();
@@ -4256,6 +4376,8 @@ static void on_quest_create_item_bb(std::shared_ptr<Client> c, SubcommandMessage
   // items in quick succession, there may be another 6xCA/6xBE sequence in flight, and the client's check if an item
   // can be created may pass when a 6xBE command that would make it fail is already on the way from the server. To
   // handle this, we simply ignore any 6xCA command if the item can't be created.
+  // Corellia: the client's script has already been told the item was created, though, so instead of ignoring it we
+  // hand it to deliver_quest_item_without_inventory_room (bank, then floor).
   try {
     c->character_file()->add_item(item, limits);
     send_create_inventory_item_to_lobby(c, c->lobby_client_id, item);
@@ -4267,11 +4389,7 @@ static void on_quest_create_item_bb(std::shared_ptr<Client> c, SubcommandMessage
     }
 
   } catch (const std::out_of_range&) {
-    if (l->log.should_log(phosg::LogLevel::L_INFO)) {
-      auto name = s->data->describe_item(c->version(), item);
-      l->log.info_f("Player {} attempted to create inventory item {:08X} ({}) via quest command, but it cannot be placed in their inventory",
-          c->lobby_client_id, item.id, name);
-    }
+    deliver_quest_item_without_inventory_room(c, l, item);
   }
 }
 
