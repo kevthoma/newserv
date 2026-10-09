@@ -171,7 +171,7 @@ get_shell_str_ret:
 hp_format_str:
   .binary   '%s%s\n\nHP: %d / %d'0000
 rare_format_str:
-  .binary   '%s%s\n\nHP: %d / %d\nRare: %s'0000
+  .binary   '%s%s\n\nHP: %d / %d\n\nRare: %s'0000  # Blank line: the HP bar is drawn on the line below the HP text
 get_hp_format_str_ret:
   pop       eax
   lea       ecx, [eax + (rare_format_str - hp_format_str)]
