@@ -171,7 +171,9 @@ get_shell_str_ret:
 hp_format_str:
   .binary   '%s%s\n\nHP: %d / %d'0000
 rare_format_str:
-  .binary   '%s%s\n\nHP: %d / %d\n\nRare: %s'0000  # Blank line: the HP bar is drawn on the line below the HP text
+  # Blank line: the HP bar is drawn on the line below the HP text. 0900 = tab, so `\tC6` is the client's color escape
+  # for yellow (the color it uses for rare item names); it lasts to the end of the text, and this is the last line.
+  .binary   '%s%s\n\nHP: %d / %d\n\n'0900'C6Rare Drop: %s'0000
 get_hp_format_str_ret:
   pop       eax
   lea       ecx, [eax + (rare_format_str - hp_format_str)]
