@@ -145,7 +145,7 @@ update_enemy_hp_text:  # [std](TObjectV8047c128* enemy @ eax, TWindowLockOn* win
   mov       dword [ebx + 0x01B0], encode_float(125)
   test      ebp, ebp
   jz        update_enemy_hp_text_height_set
-  mov       dword [ebx + 0x01B0], encode_float(141)
+  mov       dword [ebx + 0x01B0], encode_float(145)
 update_enemy_hp_text_height_set:
 
   call      get_enemy_hp_values
@@ -171,9 +171,11 @@ get_shell_str_ret:
 hp_format_str:
   .binary   '%s%s\n\nHP: %d / %d'0000
 rare_format_str:
-  # Blank line: the HP bar is drawn on the line below the HP text. 0900 = tab, so `\tC6` is the client's color escape
-  # for yellow (the color it uses for rare item names); it lasts to the end of the text, and this is the last line.
-  .binary   '%s%s\n\nHP: %d / %d\n\n'0900'C6Rare Drop: %s'0000
+  # The Rare line is line 6: line 4 is the HP bar and line 5 is where the client draws status effect icons (Jellen,
+  # Zalure, etc.; their positions are fixed when the window is created). 0900 = tab, so `\tC6` is the client's color
+  # escape for yellow (the color it uses for rare item names); it lasts to the end of the text, and this is the last
+  # line. hook9 relies on this line being the only one that starts with a tab.
+  .binary   '%s%s\n\nHP: %d / %d\n\n\n'0900'C6Rare Drop: %s'0000
 get_hp_format_str_ret:
   pop       eax
   lea       ecx, [eax + (rare_format_str - hp_format_str)]
@@ -202,7 +204,7 @@ update_enemy_hp_text_no_rare_pop:
 get_window_height:  # [/ebp](TWindowLockOn* window @ ebp) -> float height @ eax
   # Only trust the two values update_enemy_hp_text writes; anything else means it hasn't run for this window yet
   mov       eax, [ebp + 0x01B0]
-  cmp       eax, encode_float(141)
+  cmp       eax, encode_float(145)
   je        get_window_height_done
   mov       eax, encode_float(125)
 get_window_height_done:
@@ -223,6 +225,61 @@ hook8_update_window_height:  # 59NL:00731BA9; [ebp/](TWindowLockOn* window @ ebp
   pop       eax
   fld       st0, dword [ebp + 0x3C]
   ret
+
+hook9_measure_window_text:  # 59NL:00731F20; [std](const wchar_t* text @ [esp + 4]) -> uint32_t width @ eax
+  # The client sizes the window (and so the HP bar) by measuring the whole text as if it were one line. Keep that
+  # measurement for everything above the Rare line, so windows look exactly as they do without it, and only widen the
+  # window if the Rare line by itself is wider still.
+  push      esi
+  push      edi
+  push      ebx
+  mov       esi, [esp + 0x10]
+  mov       edi, esi
+hook9_find_rare_line:
+  movzx     eax, word [edi]
+  test      eax, eax
+  jz        hook9_no_rare_line
+  cmp       eax, 0x0A
+  jne       hook9_next_char
+  cmp       word [edi + 2], 0x09
+  je        hook9_found_rare_line
+hook9_next_char:
+  add       edi, 2
+  jmp       hook9_find_rare_line
+
+hook9_found_rare_line:
+  movzx     ebx, word [edi]
+  mov       word [edi], 0  # Temporarily end the text before the Rare line
+  push      esi
+  call      hook9_call_measure_text
+  add       esp, 4
+  mov       [edi], bx
+  mov       esi, eax  # esi = width of everything above the Rare line
+  lea       eax, [edi + 2]
+  push      eax
+  call      hook9_call_measure_text
+  add       esp, 4
+  cmp       eax, esi
+  cmovb     eax, esi
+  jmp       hook9_done
+
+hook9_no_rare_line:
+  push      esi
+  call      hook9_call_measure_text
+  add       esp, 4
+hook9_done:
+  pop       ebx
+  pop       edi
+  pop       esi
+  ret
+
+hook9_call_measure_text:  # Jumps to the function hook9 replaced; its address is filled in when the patch is installed
+  call      hook9_get_measure_text_ptr
+hook9_get_measure_text_ptr:
+  pop       eax
+  jmp       [eax + (hook9_measure_text_fn - hook9_get_measure_text_ptr)]
+hook9_measure_text_fn:
+  .data     0
 
 hook4_get_max_hp:  # 59NL:007318B7; [eax,ecx/](TWindowLockOn* window @ ebx, TObjectV8047c128* enemy @ eax) -> int32_t max_hp @ edx
   push      eax
@@ -299,6 +356,21 @@ hooks_end:
   mov       [eax + 1], ecx
   mov       dword [eax + 5], 0x90909090
   mov       dword [eax + 9], 0x90909090
+
+  # hook9 replaces a call to the client's measure_text, so keep that call's target for hook9 to use. (The 59NJ and
+  # 50YJ addresses are hook7's minus 0x0A, assuming the same layout; unverified.)
+  mov       eax, <VERS 0x0072B784 0x00731FC0 0x00731F20>  # hook9: `call measure_text` (5 bytes)
+  cmp       byte [eax], 0xE8
+  jne       hook9_not_installed
+  mov       ecx, [eax + 1]
+  lea       ecx, [ecx + eax + 5]
+  # (No +5 here: this assembler reads `a - b + 5` as `a - (b + 5)`, which is what the call targets above want since
+  # they're relative to the end of the call opcode, but this is a plain data address)
+  mov       [edi + (hook9_measure_text_fn - hooks_start)], ecx
+  lea       ecx, [edi + (hook9_measure_window_text - hooks_start + 5)]
+  sub       ecx, eax
+  mov       [eax + 1], ecx
+hook9_not_installed:
 
   pop       edi
   .include  WriteCodeBlocks
