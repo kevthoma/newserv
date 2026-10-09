@@ -524,7 +524,7 @@ void send_enemy_rare_table(std::shared_ptr<Client> c, const Lobby& l) {
   size_t num_entries = 0;
   bool has_rare_table = l.is_game() &&
       l.item_creator &&
-      l.item_creator->are_rare_drops_allowed() &&
+      (l.mode != GameMode::CHALLENGE) && // Mirrors ItemCreator::are_rare_drops_allowed, which is private
       ((l.episode == Episode::EP1) || (l.episode == Episode::EP2) || (l.episode == Episode::EP4));
   if (has_rare_table) {
     // Same inputs as Lobby::create_item_creator, so this shows what that ItemCreator will actually drop
