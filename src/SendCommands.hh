@@ -180,6 +180,9 @@ asio::awaitable<C_ExecuteCodeResult_B3> send_function_call(
     uint32_t checksum_size = 0,
     uint32_t override_relocations_offset = 0,
     bool ignore_actually_runs_code_flag = false);
+// Corellia: loads l's rare drop names into the EnemyHPBars patch's enemy info windows. Does nothing for clients that
+// aren't BB or don't have EnemyHPBars enabled. Returns immediately; the response is discarded.
+void send_enemy_rare_table(std::shared_ptr<Client> c, const Lobby& l);
 asio::awaitable<void> send_function_call_multi(
     std::shared_ptr<Client> c, std::unordered_set<std::shared_ptr<const ClientFunctionIndex::Function>> codes);
 asio::awaitable<bool> send_protected_command(std::shared_ptr<Client> c, const void* data, size_t size, bool echo_to_lobby);
