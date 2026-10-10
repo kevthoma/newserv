@@ -3,6 +3,7 @@
 #include <inttypes.h>
 #include <string.h>
 
+#include <cmath>
 #include <functional>
 #include <memory>
 #include <phosg/Encoding.hh>
@@ -497,7 +498,9 @@ void send_enemy_rare_table(std::shared_ptr<Client> c, const Lobby& l) {
   // by the client's rt_index (0 = no rare), followed by the names as null-terminated UTF-16. An all-zero table clears
   // the Rare line, which is what we send when rare drops are disabled.
   static constexpr size_t TABLE_SIZE = 0x1000;
-  static constexpr size_t MAX_NAME_CHARS = 40;
+  // Each entry is "<name> (1/<n>)", joined with ", " where an rt_index has more than one. The patch's text buffer
+  // holds 158 wchar_ts, and name + HP + this stays well inside it.
+  static constexpr size_t MAX_NAME_CHARS = 60;
 
   if ((c->version() != Version::BB_V4) ||
       !c->login ||
@@ -535,15 +538,37 @@ void send_enemy_rare_table(std::shared_ptr<Client> c, const Lobby& l) {
     if (section_id >= 10) {
       section_id = 0;
     }
+    // The drop chances that gate the rare roll: ItemCreator::on_monster_item_drop checks an enemy's rare table only
+    // after its "any drop" roll passes, so the odds shown are rare rate (already scaled by
+    // ServerGlobalDropRateMultiplier when the rare set was loaded) x that drop chance -- per kill.
+    auto common_table = s->data->common_item_set(Version::BB_V4, l.quest)->get_table(
+        l.episode, mode, l.difficulty, section_id);
 
     std::unordered_map<std::string, uint16_t> name_offsets;
     for (size_t rt_index = 0; rt_index < NUM_RT_INDEXES_V4; rt_index++) {
       std::vector<std::string> names;
       for (EnemyType type : enemy_types_for_rare_table_index(l.episode, rt_index)) {
+        // Dark Falz's phases share an rt_index, but only one of them ever rolls: the final-boss drop (see "Creating
+        // item from final boss" in ReceiveSubcommands.cc) uses DARK_FALZ_2 on Normal, which has no third phase, and
+        // DARK_FALZ_3 everywhere else. Showing the other phase's entry would show odds for a drop that can't happen.
+        if ((type == EnemyType::DARK_FALZ_2) && (l.difficulty != Difficulty::NORMAL)) {
+          continue;
+        }
+        if ((type == EnemyType::DARK_FALZ_3) && (l.difficulty == Difficulty::NORMAL)) {
+          continue;
+        }
+        // An enemy with no drop chance never reaches its rare roll, so it has no rare to show.
+        auto drop_it = common_table->enemy_type_drop_probs.find(type);
+        uint8_t drop_percent = (drop_it == common_table->enemy_type_drop_probs.end()) ? 0 : drop_it->second;
+        if (drop_percent == 0) {
+          continue;
+        }
         for (const auto& spec : rare_item_set->get_enemy_specs(mode, l.episode, l.difficulty, section_id, type)) {
           if (spec.probability == 0) {
             continue;
           }
+          double chance = (static_cast<double>(spec.probability) / 4294967296.0) * (drop_percent / 100.0);
+          uint64_t one_in = (chance >= 1.0) ? 1 : static_cast<uint64_t>(std::llround(1.0 / chance));
           std::string name = name_index
               ? name_index->describe_item(spec.data, ItemNameIndex::Flag::NAME_ONLY)
               : spec.data.hex();
@@ -556,6 +581,7 @@ void send_enemy_rare_table(std::shared_ptr<Client> c, const Lobby& l) {
               name.resize(x_pos);
             }
           }
+          name += std::format(" (1/{})", one_in);
           if (std::find(names.begin(), names.end(), name) == names.end()) {
             names.emplace_back(std::move(name));
           }
