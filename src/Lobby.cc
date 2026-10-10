@@ -232,6 +232,14 @@ void Lobby::create_item_creator(Version logic_version) {
   if (s->use_legacy_item_random_behavior) {
     this->item_creator->set_legacy_replay();
   }
+
+  // Corellia: the drop table may have changed (new game, leader, quest, difficulty, or $secid), so refresh the rare
+  // drop names everyone's enemy info windows show
+  for (const auto& lc : this->clients) {
+    if (lc) {
+      send_enemy_rare_table(lc, *this);
+    }
+  }
 }
 
 uint8_t Lobby::effective_section_id() const {
@@ -430,7 +438,9 @@ void Lobby::add_client(std::shared_ptr<Client> c, ssize_t required_client_id) {
   }
   if (leader_index >= this->max_clients) {
     this->leader_id = c->lobby_client_id;
-    this->create_item_creator();
+    this->create_item_creator(); // Also sends c the enemy rare table
+  } else if (this->is_game() && this->item_creator) {
+    send_enemy_rare_table(c, *this);
   }
 
   // If this is a lobby or no one was here before this, reassign all the floor item IDs and reset the next item IDs

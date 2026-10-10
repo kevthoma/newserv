@@ -492,6 +492,110 @@ void send_function_call(
   ch->send(0xB2, 0x00, data);
 }
 
+void send_enemy_rare_table(std::shared_ptr<Client> c, const Lobby& l) {
+  // Table layout (must match EnemyHPBarsBB.s and EnemyRareTable.s): uint16_t name_offset[NUM_RT_INDEXES_V4], indexed
+  // by the client's rt_index (0 = no rare), followed by the names as null-terminated UTF-16. An all-zero table clears
+  // the Rare line, which is what we send when rare drops are disabled.
+  static constexpr size_t TABLE_SIZE = 0x1000;
+  static constexpr size_t MAX_NAME_CHARS = 40;
+
+  if ((c->version() != Version::BB_V4) ||
+      !c->login ||
+      !c->check_flag(Client::Flag::HAS_SEND_FUNCTION_CALL) ||
+      !c->check_flag(Client::Flag::SEND_FUNCTION_CALL_ACTUALLY_RUNS_CODE) ||
+      !c->channel->connected()) {
+    return;
+  }
+  auto s = c->require_server_state();
+  if (!s->data->auto_patches.count("EnemyHPBars") &&
+      !s->data->bb_required_patches.count("EnemyHPBars") &&
+      !c->login->account->auto_patches_enabled.count("EnemyHPBars")) {
+    return;
+  }
+  std::shared_ptr<const ClientFunctionIndex::Function> fn;
+  try {
+    fn = s->data->client_functions->get("EnemyRareTable", c->specific_version);
+  } catch (const std::out_of_range&) {
+    return;
+  }
+
+  std::string table(TABLE_SIZE, '\0');
+  size_t table_used = NUM_RT_INDEXES_V4 * sizeof(uint16_t);
+  size_t num_entries = 0;
+  bool has_rare_table = l.is_game() &&
+      l.item_creator &&
+      (l.mode != GameMode::CHALLENGE) && // Mirrors ItemCreator::are_rare_drops_allowed, which is private
+      ((l.episode == Episode::EP1) || (l.episode == Episode::EP2) || (l.episode == Episode::EP4));
+  if (has_rare_table) {
+    // Same inputs as Lobby::create_item_creator, so this shows what that ItemCreator will actually drop
+    auto rare_item_set = s->data->rare_item_set(Version::BB_V4, l.quest);
+    auto name_index = s->data->item_name_index_opt(Version::BB_V4);
+    GameMode mode = (l.mode == GameMode::SOLO) ? GameMode::NORMAL : l.mode;
+    uint8_t section_id = l.effective_section_id();
+    if (section_id >= 10) {
+      section_id = 0;
+    }
+
+    std::unordered_map<std::string, uint16_t> name_offsets;
+    for (size_t rt_index = 0; rt_index < NUM_RT_INDEXES_V4; rt_index++) {
+      std::vector<std::string> names;
+      for (EnemyType type : enemy_types_for_rare_table_index(l.episode, rt_index)) {
+        for (const auto& spec : rare_item_set->get_enemy_specs(mode, l.episode, l.difficulty, section_id, type)) {
+          if (spec.probability == 0) {
+            continue;
+          }
+          std::string name = name_index
+              ? name_index->describe_item(spec.data, ItemNameIndex::Flag::NAME_ONLY)
+              : spec.data.hex();
+          // describe_item appends " x<amount>" to stackable tools, and rare table entries have no amount (" x0")
+          if (spec.data.data1[0] == 0x03) {
+            size_t x_pos = name.rfind(" x");
+            if ((x_pos != std::string::npos) &&
+                (x_pos + 2 < name.size()) &&
+                (name.find_first_not_of("0123456789", x_pos + 2) == std::string::npos)) {
+              name.resize(x_pos);
+            }
+          }
+          if (std::find(names.begin(), names.end(), name) == names.end()) {
+            names.emplace_back(std::move(name));
+          }
+        }
+      }
+      if (names.empty()) {
+        continue;
+      }
+
+      std::string joined = phosg::join(names, ", ");
+      if (joined.size() > MAX_NAME_CHARS) {
+        joined = joined.substr(0, MAX_NAME_CHARS - 3) + "...";
+      }
+      auto it = name_offsets.find(joined);
+      if (it == name_offsets.end()) {
+        size_t bytes = (joined.size() + 1) * sizeof(uint16_t);
+        if (table_used + bytes > TABLE_SIZE) {
+          c->log.warning_f("Enemy rare table is full; omitting rare for rt_index {:02X}", rt_index);
+          continue;
+        }
+        // Item names are ASCII; anything else would need the client's text encoding, so it's replaced
+        for (size_t z = 0; z < joined.size(); z++) {
+          uint8_t ch = joined[z];
+          *reinterpret_cast<le_uint16_t*>(table.data() + table_used + z * 2) = (ch < 0x80) ? ch : '?';
+        }
+        it = name_offsets.emplace(joined, table_used).first;
+        table_used += bytes;
+      }
+      *reinterpret_cast<le_uint16_t*>(table.data() + rt_index * 2) = it->second;
+      num_entries++;
+    }
+  }
+
+  c->log.info_f("Sending enemy rare table ({} entries, {} bytes)", num_entries, table_used);
+  send_function_call(c->channel, c->enabled_flags, fn, {}, table.data(), table.size());
+  // The client answers with a B3 like any other call; keep the response queue in step so that answer doesn't satisfy
+  // (and steal) the promise of a later function call that is actually being awaited
+  c->function_call_response_queue.emplace_back(nullptr);
+}
+
 asio::awaitable<bool> send_protected_command(std::shared_ptr<Client> c, const void* data, size_t size, bool echo_to_lobby) {
   switch (c->version()) {
     case Version::DC_NTE:
