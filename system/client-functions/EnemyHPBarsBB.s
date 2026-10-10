@@ -145,7 +145,7 @@ update_enemy_hp_text:  # [std](TObjectV8047c128* enemy @ eax, TWindowLockOn* win
   mov       dword [ebx + 0x01B0], encode_float(125)
   test      ebp, ebp
   jz        update_enemy_hp_text_height_set
-  mov       dword [ebx + 0x01B0], encode_float(145)
+  mov       dword [ebx + 0x01B0], encode_float(165)
 update_enemy_hp_text_height_set:
 
   call      get_enemy_hp_values
@@ -171,11 +171,12 @@ get_shell_str_ret:
 hp_format_str:
   .binary   '%s%s\n\nHP: %d / %d'0000
 rare_format_str:
-  # The Rare line is line 6: line 4 is the HP bar and line 5 is where the client draws status effect icons (Jellen,
-  # Zalure, etc.; their positions are fixed when the window is created). 0900 = tab, so `\tC6` is the client's color
-  # escape for yellow (the color it uses for rare item names); it lasts to the end of the text, and this is the last
-  # line. hook9 relies on this line being the only one that starts with a tab.
-  .binary   '%s%s\n\nHP: %d / %d\n\n\n'0900'C6Rare Drop: %s'0000
+  # The Rare line is line 7: line 4 is the HP bar and line 5 is where the client draws status effect icons (Jellen,
+  # Zalure, etc.; their positions are fixed when the window is created), which reach almost to line 6, so line 6 is
+  # left blank as a gap. 0900 = tab, so `\tC6` is the client's color escape for yellow (the color it uses for rare item
+  # names); it lasts to the end of the text, and this is the last line. hook9 relies on this line being the only one
+  # that starts with a tab.
+  .binary   '%s%s\n\nHP: %d / %d\n\n\n\n'0900'C6Rare Drop: %s'0000
 get_hp_format_str_ret:
   pop       eax
   lea       ecx, [eax + (rare_format_str - hp_format_str)]
@@ -204,7 +205,7 @@ update_enemy_hp_text_no_rare_pop:
 get_window_height:  # [/ebp](TWindowLockOn* window @ ebp) -> float height @ eax
   # Only trust the two values update_enemy_hp_text writes; anything else means it hasn't run for this window yet
   mov       eax, [ebp + 0x01B0]
-  cmp       eax, encode_float(145)
+  cmp       eax, encode_float(165)
   je        get_window_height_done
   mov       eax, encode_float(125)
 get_window_height_done:
