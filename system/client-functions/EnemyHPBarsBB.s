@@ -142,7 +142,7 @@ update_enemy_hp_text:  # [std](TObjectV8047c128* enemy @ eax, TWindowLockOn* win
   # Corellia: look up the rare drop (ebp = name or null) and size the window for it; get_window_height reads this
   call      get_rare_name
   mov       ebp, eax
-  mov       dword [ebx + 0x01B0], encode_float(125)
+  mov       dword [ebx + 0x01B0], encode_float(132)
   test      ebp, ebp
   jz        update_enemy_hp_text_height_set
   mov       dword [ebx + 0x01B0], encode_float(165)
@@ -207,7 +207,7 @@ get_window_height:  # [/ebp](TWindowLockOn* window @ ebp) -> float height @ eax
   mov       eax, [ebp + 0x01B0]
   cmp       eax, encode_float(165)
   je        get_window_height_done
-  mov       eax, encode_float(125)
+  mov       eax, encode_float(132)
 get_window_height_done:
   ret
 
@@ -402,7 +402,8 @@ hook9_not_installed:
   .data     encode_float(125)
 
   # Status effect icon row (4 slots). Upstream puts it at 75; Corellia uses 82 so that, with the Rare line two lines
-  # below the HP bar, the icons sit centered between the bar and the Rare line (measured in game)
+  # below the HP bar, the icons sit centered between the bar and the Rare line (measured in game). Windows without a
+  # Rare line are 132 tall rather than 125 to make room for the lower icons.
   .data     <VERS 0x009E6D84 0x009F0DA4 0x009F2DA4>
   .data     0x00000004
   .data     encode_float(82)
