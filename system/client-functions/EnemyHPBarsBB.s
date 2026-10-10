@@ -401,21 +401,23 @@ hook9_not_installed:
   .data     4
   .data     encode_float(125)
 
+  # Status effect icon row (4 slots). Upstream puts it at 75; Corellia uses 82 so that, with the Rare line two lines
+  # below the HP bar, the icons sit centered between the bar and the Rare line (measured in game)
   .data     <VERS 0x009E6D84 0x009F0DA4 0x009F2DA4>
   .data     0x00000004
-  .data     encode_float(75)
+  .data     encode_float(82)
 
   .data     <VERS 0x009E6DB4 0x009F0DD4 0x009F2DD4>
   .data     0x00000004
-  .data     encode_float(75)
+  .data     encode_float(82)
 
   .data     <VERS 0x009E6DE4 0x009F0E04 0x009F2E04>
   .data     0x00000004
-  .data     encode_float(75)
+  .data     encode_float(82)
 
   .data     <VERS 0x009E6E14 0x009F0E34 0x009F2E34>
   .data     0x00000004
-  .data     encode_float(75)
+  .data     encode_float(82)
 
   .data     <VERS 0x009E6E44 0x009F0E64 0x009F2E64>
   .data     0x00000004

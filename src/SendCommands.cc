@@ -547,6 +547,15 @@ void send_enemy_rare_table(std::shared_ptr<Client> c, const Lobby& l) {
           std::string name = name_index
               ? name_index->describe_item(spec.data, ItemNameIndex::Flag::NAME_ONLY)
               : spec.data.hex();
+          // describe_item appends " x<amount>" to stackable tools, and rare table entries have no amount (" x0")
+          if (spec.data.data1[0] == 0x03) {
+            size_t x_pos = name.rfind(" x");
+            if ((x_pos != std::string::npos) &&
+                (x_pos + 2 < name.size()) &&
+                (name.find_first_not_of("0123456789", x_pos + 2) == std::string::npos)) {
+              name.resize(x_pos);
+            }
+          }
           if (std::find(names.begin(), names.end(), name) == names.end()) {
             names.emplace_back(std::move(name));
           }
