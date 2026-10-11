@@ -203,6 +203,11 @@ update_enemy_hp_text_no_rare_pop:
   ret
 
 get_window_height:  # [/ebp](TWindowLockOn* window @ ebp) -> float height @ eax
+  # Corellia: the window's own X/Y scale (+0x68/+0x6C). The client sets these when it creates the window -- 0.7 or
+  # 1.0, depending on the global at 59NL:00A48A3C -- and the caller positions the window from +0x6C, so setting
+  # them here, where both height hooks pass, sizes the whole window, text included (checked in game). Corellia draws it at 0.8.
+  mov       dword [ebp + 0x68], encode_float(0.8)
+  mov       dword [ebp + 0x6C], encode_float(0.8)
   # Only trust the two values update_enemy_hp_text writes; anything else means it hasn't run for this window yet
   mov       eax, [ebp + 0x01B0]
   cmp       eax, encode_float(165)
