@@ -215,6 +215,12 @@
     // Static game data messages describe the loading of any kind of game data.
     "StaticGameData": "INFO",
   },
+  // Writes a copy of everything logged above to a dated file (newserv-YYYY-MM-DD.log) in this directory, as well as to
+  // the terminal. Relative paths are relative to newserv's working directory. Use this when the terminal's output is not
+  // kept, for example in a container whose log is discarded when it is recreated: point it at a persistent volume.
+  // Files older than LogFileRetentionDays are deleted (0 keeps them forever). Leave the directory empty to disable.
+  "LogFileDirectory": "system/logs",
+  "LogFileRetentionDays": 90,
   // Some large commands (especially during the BB login sequence) can clutter up logs, so we hide these commands by
   // default. If you're investigating or submitting a bug report that occurs on BB clients, set this to false to get a
   // full session log before submitting your report.
