@@ -36,6 +36,7 @@
 #include "IPStackSimulator.hh"
 #include "ImageEncoder.hh"
 #include "Items.hh"
+#include "LogFile.hh"
 #include "Loggers.hh"
 #include "NetworkAddresses.hh"
 #include "PPKArchive.hh"
@@ -4575,6 +4576,19 @@ Action a_run_server_replay_log(
 #endif
       if (!phosg::is_windows() && isatty(fileno(stderr))) {
         use_terminal_colors = true;
+      }
+
+      // Start the persistent log file before anything else, so it also captures config loading. If the config can't
+      // be read here, load_all reports it properly below.
+      if (replay_log_filenames.empty()) {
+        try {
+          auto config = phosg::JSON::parse(phosg::load_file(get_config_filename(args)));
+          std::string log_directory = config.get_string("LogFileDirectory", "");
+          if (!log_directory.empty()) {
+            start_log_file(log_directory, std::max<int64_t>(config.get_int("LogFileRetentionDays", 90), 0));
+          }
+        } catch (const std::exception&) {
+        }
       }
 
       auto data_index = std::make_shared<DataIndex>(get_config_filename(args));

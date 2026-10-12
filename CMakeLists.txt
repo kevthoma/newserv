@@ -98,6 +98,7 @@ set(SOURCES
     src/ItemTranslationTable.cc
     src/LevelTable.cc
     src/Lobby.cc
+    src/LogFile.cc
     src/Loggers.cc
     src/MagMetadataTable.cc
     src/Main.cc
