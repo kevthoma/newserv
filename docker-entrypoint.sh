@@ -39,12 +39,21 @@ detect_ip() {
   printf '%s' "$ip"
 }
 
-# In-place set of a "Key": "value" string field in the relaxed-JSON config (same approach as the
-# legacy seed script; preserves the rest of the file).
+# Set a "Key": "value" string field in the relaxed-JSON config, preserving the rest of the file.
+# The file is rewritten IN PLACE (same inode) and only when the value actually changes: the portal
+# bind-mounts config.json as a single file, and `sed -i` / mv-style edits swap in a new inode, leaving
+# the portal reading and writing an orphaned copy that newserv never sees. Returns 0 if it wrote.
 set_addr() {
-  local key="$1" val="$2"
-  [ -n "$val" ] || return 0
-  sed -i "s/\"$key\": \"[^\"]*\"/\"$key\": \"$val\"/" "$CFG"
+  local key="$1" val="$2" tmp
+  [ -n "$val" ] || return 1
+  tmp="$(mktemp)"
+  sed "s/\"$key\": \"[^\"]*\"/\"$key\": \"$val\"/" "$CFG" > "$tmp"
+  if cmp -s "$tmp" "$CFG"; then
+    rm -f "$tmp"
+    return 1
+  fi
+  cat "$tmp" > "$CFG"
+  rm -f "$tmp"
 }
 
 # Fetch the current public IPv4 from an echo service (validated dotted-quad); empty/return-1 on failure.
@@ -85,8 +94,8 @@ if [ ! -f "$CFG" ]; then
   echo "[entrypoint] stamping LocalAddress=${LAN_IP:-<unset>} ExternalAddress=${EXT_IP:-<unset>}"
   # Stamp each independently so an explicit NEWSERV_EXTERNAL_ADDRESS still applies even if LAN-IP
   # auto-detection came up empty.
-  [ -n "$LAN_IP" ] && set_addr LocalAddress "$LAN_IP"
-  [ -n "$EXT_IP" ] && set_addr ExternalAddress "$EXT_IP"
+  [ -n "$LAN_IP" ] && { set_addr LocalAddress "$LAN_IP" || true; }
+  [ -n "$EXT_IP" ] && { set_addr ExternalAddress "$EXT_IP" || true; }
   if [ -z "$LAN_IP" ] && [ -z "$EXT_IP" ]; then
     echo "[entrypoint] WARNING: could not detect the container IP and no NEWSERV_EXTERNAL_ADDRESS set;" \
          "leaving LocalAddress/ExternalAddress at config defaults. Set them via the portal Game settings" \
@@ -98,8 +107,11 @@ else
   if [ -n "${NEWSERV_EXTERNAL_ADDRESS:-}" ]; then
     EXT_IP="$(resolve_ext || true)"
     if [ -n "$EXT_IP" ]; then
-      echo "[entrypoint] refreshing ExternalAddress=$EXT_IP"
-      set_addr ExternalAddress "$EXT_IP"
+      if set_addr ExternalAddress "$EXT_IP"; then
+        echo "[entrypoint] refreshed ExternalAddress=$EXT_IP"
+      else
+        echo "[entrypoint] ExternalAddress=$EXT_IP already current; config.json not touched"
+      fi
     else
       echo "[entrypoint] NEWSERV_EXTERNAL_ADDRESS=auto but couldn't fetch the public IP; leaving ExternalAddress as-is"
     fi
@@ -119,7 +131,7 @@ if [ "$AUTO_EXT" -eq 1 ]; then
       cur="$(get_cfg_external)"
       [ -n "$new_ip" ] && [ "$new_ip" != "$cur" ] || continue
       echo "[ext-sync] public IP changed: ExternalAddress $cur -> $new_ip (updating + reload config)"
-      set_addr ExternalAddress "$new_ip"
+      set_addr ExternalAddress "$new_ip" || true
       curl -fsS --max-time 8 -X POST http://127.0.0.1:5000/y/shell-exec \
         -H 'Content-Type: application/json' -d '{"command":"reload config"}' >/dev/null 2>&1 \
         || echo "[ext-sync] reload-config request failed (will retry next cycle)"
