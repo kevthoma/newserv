@@ -719,6 +719,8 @@ The HTTP server is disabled by default, and you have to explicitly enable it in 
 
 To enable the HTTP server, add a port number in the HTTPListen list in config.json. The HTTP server will listen on that port.
 
+To require authentication (Corellia fork), set the environment variable `NEWSERV_HTTP_API_TOKEN` to a long random secret before starting newserv. Every request must then send `Authorization: Bearer <token>`; requests without it get HTTP 401. If the variable is unset, the API behaves as upstream (no authentication).
+
 All returned data is JSON-encoded, and all request data (for POST requests) must also be JSON-encoded with the `Content-Type: application/json` header.
 
 The HTTP server has the following endpoints:
