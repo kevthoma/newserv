@@ -62,6 +62,17 @@ const char* name_for_http_event_type(HTTPEventType type) {
 
 HTTPServer::HTTPServer(std::shared_ptr<ServerState> state)
     : AsyncHTTPServer(state->io_context, "[HTTPServer] "), state(state) {
+  // Corellia: the API includes /y/shell-exec and every account's credentials, and the server runs
+  // with its own LAN address, so anything on the LAN could reach it. With NEWSERV_HTTP_API_TOKEN set,
+  // every request must send "Authorization: Bearer <token>"; without it, behavior is unchanged.
+  const char* token = getenv("NEWSERV_HTTP_API_TOKEN");
+  if (token && *token) {
+    this->api_token = token;
+    this->log.info_f("API token required for all requests (NEWSERV_HTTP_API_TOKEN is set)");
+  } else {
+    this->log.warning_f("NEWSERV_HTTP_API_TOKEN is not set; the HTTP API accepts unauthenticated requests");
+  }
+
   using RouterRetT = std::variant<RawResponse, SharedRawResponse, std::shared_ptr<const phosg::JSON>>;
   using RetT = asio::awaitable<RouterRetT>;
   using ArgsT = HTTPRouter<RouterRetT, NewservHTTPClient>::Args;
@@ -1034,6 +1045,26 @@ asio::awaitable<void> HTTPServer::send_event_notification(
   co_await complete_promise.get();
 }
 
+static bool constant_time_equals(const std::string& a, const std::string& b) {
+  if (a.size() != b.size()) {
+    return false;
+  }
+  unsigned char diff = 0;
+  for (size_t z = 0; z < a.size(); z++) {
+    diff |= static_cast<unsigned char>(a[z] ^ b[z]);
+  }
+  return diff == 0;
+}
+
+bool HTTPServer::request_has_valid_token(const HTTPRequest& req) const {
+  static const std::string prefix = "Bearer ";
+  const std::string* header = req.get_header("authorization");
+  if (!header || (header->size() <= prefix.size()) || (header->compare(0, prefix.size(), prefix) != 0)) {
+    return false;
+  }
+  return constant_time_equals(header->substr(prefix.size()), this->api_token);
+}
+
 asio::awaitable<std::unique_ptr<HTTPResponse>> HTTPServer::handle_request(
     std::shared_ptr<NewservHTTPClient> c, HTTPRequest&& req) {
   std::variant<RawResponse, SharedRawResponse, std::shared_ptr<const phosg::JSON>> ret;
@@ -1057,6 +1088,10 @@ asio::awaitable<std::unique_ptr<HTTPResponse>> HTTPServer::handle_request(
     auto* hex_param = req.get_query_param("hex");
     if (hex_param && (*hex_param == "true")) {
       serialize_options |= phosg::JSON::SerializeOption::HEX_INTEGERS;
+    }
+
+    if (!this->api_token.empty() && !this->request_has_valid_token(req)) {
+      throw HTTPError(401, "missing or invalid API token");
     }
 
     ret = co_await this->router.call_handler(c, req);

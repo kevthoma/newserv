@@ -132,7 +132,10 @@ if [ "$AUTO_EXT" -eq 1 ]; then
       [ -n "$new_ip" ] && [ "$new_ip" != "$cur" ] || continue
       echo "[ext-sync] public IP changed: ExternalAddress $cur -> $new_ip (updating + reload config)"
       set_addr ExternalAddress "$new_ip" || true
-      curl -fsS --max-time 8 -X POST http://127.0.0.1:5000/y/shell-exec \
+      # Send the API token when newserv requires one (NEWSERV_HTTP_API_TOKEN; see README).
+      auth=()
+      [ -n "${NEWSERV_HTTP_API_TOKEN:-}" ] && auth=(-H "Authorization: Bearer ${NEWSERV_HTTP_API_TOKEN}")
+      curl -fsS --max-time 8 -X POST http://127.0.0.1:5000/y/shell-exec "${auth[@]}" \
         -H 'Content-Type: application/json' -d '{"command":"reload config"}' >/dev/null 2>&1 \
         || echo "[ext-sync] reload-config request failed (will retry next cycle)"
     done
