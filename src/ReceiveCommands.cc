@@ -11,6 +11,7 @@
 #include <phosg/Strings.hh>
 #include <phosg/Time.hh>
 
+#include "AsyncUtils.hh"
 #include "ChatCommands.hh"
 #include "Compression.hh"
 #include "Episode3/Tournament.hh"
@@ -602,7 +603,10 @@ static asio::awaitable<void> on_04_U(std::shared_ptr<Client> c, Channel::Message
   auto s = c->require_server_state();
   if (!c->username.empty() && !c->password.empty()) {
     try {
-      s->account_index->from_bb_credentials(c->username, &c->password, false);
+      // Corellia: password hashing is deliberately slow, so check off the main loop.
+      co_await call_on_thread_pool(*s->thread_pool, [&]() {
+        return s->account_index->from_bb_credentials(c->username, &c->password, false);
+      });
     } catch (const AccountIndex::incorrect_password& e) {
       result_code = 0x03;
     } catch (const AccountIndex::missing_account& e) {
@@ -1451,7 +1455,10 @@ static asio::awaitable<void> on_93_BB(std::shared_ptr<Client> c, Channel::Messag
 
   auto s = c->require_server_state();
   try {
-    c->set_login(s->account_index->from_bb_credentials(c->username, &c->password, s->data->allow_unregistered_users));
+    // Corellia: password hashing is deliberately slow, so check off the main loop.
+    c->set_login(co_await call_on_thread_pool(*s->thread_pool, [&]() {
+      return s->account_index->from_bb_credentials(c->username, &c->password, s->data->allow_unregistered_users);
+    }));
   } catch (const AccountIndex::no_username& e) {
     c->log.info_f("Login failed (no username)");
     send_client_init_bb(c, 0x08);

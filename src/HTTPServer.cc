@@ -9,6 +9,7 @@
 
 #include "GameServer.hh"
 #include "IPStackSimulator.hh"
+#include "PasswordHash.hh"
 #include "Loggers.hh"
 #include "Revision.hh"
 #include "Server.hh"
@@ -90,6 +91,42 @@ HTTPServer::HTTPServer(std::shared_ptr<ServerState> state)
         {"Revision", GIT_REVISION_HASH},
         {"Routes", routes_json},
     }));
+  });
+
+  // Corellia: check a BB username/password without exposing any credential. Answers
+  // {"Valid": true, "AccountID": n} or {"Valid": false} (unknown user and wrong password look the same).
+  // Hashing runs on the thread pool so a login check never stalls the server's main loop.
+  this->router.add(HTTPRequest::Method::POST, "/y/verify-bb-login", [this](ArgsT&& args) -> RetT {
+    std::string username, password;
+    try {
+      username = args.post_data.get_string("UserName");
+      password = args.post_data.get_string("Password");
+    } catch (const std::exception& e) {
+      throw HTTPError(400, "body must be a JSON object with string UserName and Password");
+    }
+    // Copy the stored hash here, on the main thread (shell commands that change it run here too), and
+    // hand only the copy to the thread pool.
+    std::string stored_hash;
+    uint32_t account_id = 0;
+    for (const auto& account : this->state->account_index->all()) {
+      auto it = account->bb_licenses.find(username);
+      if (it != account->bb_licenses.end()) {
+        stored_hash = it->second->password_hash;
+        account_id = account->account_id;
+        break;
+      }
+    }
+    bool valid = false;
+    if (!stored_hash.empty() && !password.empty()) {
+      valid = co_await call_on_thread_pool(*this->state->thread_pool, [stored_hash, password]() -> bool {
+        return PasswordHash::verify(password, stored_hash);
+      });
+    }
+    auto ret = phosg::JSON::dict({{"Valid", valid}});
+    if (valid) {
+      ret.emplace("AccountID", account_id);
+    }
+    co_return std::make_shared<phosg::JSON>(std::move(ret));
   });
 
   this->router.add(HTTPRequest::Method::POST, "/y/shell-exec", [this](ArgsT&& args) -> RetT {
@@ -619,7 +656,7 @@ HTTPServer::HTTPServer(std::shared_ptr<ServerState> state)
   this->router.add(HTTPRequest::Method::GET, "/y/accounts", [this](ArgsT&&) -> RetT {
     auto res = std::make_shared<phosg::JSON>(phosg::JSON::list());
     for (const auto& it : this->state->account_index->all()) {
-      res->emplace_back(it->json());
+      res->emplace_back(it->json(false)); // Corellia: never return passwords or hashes
     }
     co_return res;
   });
@@ -627,7 +664,7 @@ HTTPServer::HTTPServer(std::shared_ptr<ServerState> state)
   this->router.add(HTTPRequest::Method::GET, "/y/account/:account_id", [this](ArgsT&& args) -> RetT {
     uint32_t account_id = args.get_param<uint32_t>("account_id");
     try {
-      co_return std::make_shared<phosg::JSON>(this->state->account_index->from_account_id(account_id)->json());
+      co_return std::make_shared<phosg::JSON>(this->state->account_index->from_account_id(account_id)->json(false));
     } catch (const AccountIndex::missing_account&) {
       throw HTTPError(404, "Account does not exist");
     }

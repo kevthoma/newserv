@@ -11,6 +11,8 @@
 
 #include "Account.hh"
 
+#include "PasswordHash.hh"
+
 std::shared_ptr<DCNTELicense> DCNTELicense::from_json(const phosg::JSON& json) {
   auto ret = std::make_shared<DCNTELicense>();
   ret->serial_number = json.get_string("SerialNumber");
@@ -68,12 +70,15 @@ std::shared_ptr<GCLicense> GCLicense::from_json(const phosg::JSON& json) {
   return ret;
 }
 
-phosg::JSON GCLicense::json() const {
-  return phosg::JSON::dict({
+phosg::JSON GCLicense::json(bool include_credentials) const {
+  auto ret = phosg::JSON::dict({
       {"SerialNumber", this->serial_number},
       {"AccessKey", this->access_key},
-      {"Password", this->password},
   });
+  if (include_credentials) {
+    ret.emplace("Password", this->password);
+  }
+  return ret;
 }
 
 std::shared_ptr<XBLicense> XBLicense::from_json(const phosg::JSON& json) {
@@ -97,27 +102,57 @@ phosg::JSON XBLicense::json() const {
   return phosg::JSON::dict({{"GamerTag", this->gamertag}, {"UserID", this->user_id}, {"AccountID", this->account_id}});
 }
 
+void BBLicense::set_plaintext_password(const std::string& password) {
+  if (password.size() > 16) {
+    throw std::runtime_error("password is too long");
+  }
+  if (password.empty()) {
+    throw std::runtime_error("password is too short");
+  }
+  this->password_hash = PasswordHash::make(password);
+}
+
+void BBLicense::set_password_or_hash(const std::string& password_or_hash) {
+  if (PasswordHash::is_hash(password_or_hash)) {
+    this->password_hash = password_or_hash;
+  } else {
+    this->set_plaintext_password(password_or_hash);
+  }
+}
+
+bool BBLicense::check_password(const std::string& password) const {
+  return PasswordHash::verify(password, this->password_hash);
+}
+
 std::shared_ptr<BBLicense> BBLicense::from_json(const phosg::JSON& json) {
   auto ret = std::make_shared<BBLicense>();
   ret->username = json.get_string("UserName");
-  ret->password = json.get_string("Password");
   if (ret->username.size() > 16) {
     throw std::runtime_error("username is too long");
   }
   if (ret->username.empty()) {
     throw std::runtime_error("username is too short");
   }
-  if (ret->password.size() > 16) {
-    throw std::runtime_error("password is too long");
-  }
-  if (ret->password.empty()) {
-    throw std::runtime_error("password is too short");
+  std::string hash = json.get_string("PasswordHash", "");
+  if (!hash.empty()) {
+    if (!PasswordHash::is_hash(hash)) {
+      throw std::runtime_error("password hash is malformed");
+    }
+    ret->password_hash = std::move(hash);
+  } else {
+    // Legacy plaintext; hashed here, and the file is rewritten at startup (AccountIndex).
+    ret->set_plaintext_password(json.get_string("Password"));
+    ret->converted_from_plaintext = true;
   }
   return ret;
 }
 
-phosg::JSON BBLicense::json() const {
-  return phosg::JSON::dict({{"UserName", this->username}, {"Password", this->password}});
+phosg::JSON BBLicense::json(bool include_credentials) const {
+  auto ret = phosg::JSON::dict({{"UserName", this->username}});
+  if (include_credentials) {
+    ret.emplace("PasswordHash", this->password_hash);
+  }
+  return ret;
 }
 
 Account::Account(const phosg::JSON& json)
@@ -179,7 +214,8 @@ Account::Account(const phosg::JSON& json)
     if (!bb_username.empty() && !bb_password.empty()) {
       auto lic = std::make_shared<BBLicense>();
       lic->username = bb_username;
-      lic->password = bb_password;
+      lic->set_plaintext_password(bb_password);
+      lic->converted_from_plaintext = true;
       this->bb_licenses.emplace(lic->username, lic);
     }
   } else {
@@ -232,7 +268,16 @@ Account::Account(const phosg::JSON& json)
   this->auto_patches_initialized = json.get_bool("AutoPatchesInitialized", false);
 }
 
-phosg::JSON Account::json() const {
+bool Account::has_converted_plaintext_passwords() const {
+  for (const auto& it : this->bb_licenses) {
+    if (it.second->converted_from_plaintext) {
+      return true;
+    }
+  }
+  return false;
+}
+
+phosg::JSON Account::json(bool include_credentials) const {
   phosg::JSON dc_nte_json = phosg::JSON::list();
   for (const auto& it : this->dc_nte_licenses) {
     dc_nte_json.emplace_back(it.second->json());
@@ -247,7 +292,7 @@ phosg::JSON Account::json() const {
   }
   phosg::JSON gc_json = phosg::JSON::list();
   for (const auto& it : this->gc_licenses) {
-    gc_json.emplace_back(it.second->json());
+    gc_json.emplace_back(it.second->json(include_credentials));
   }
   phosg::JSON xb_json = phosg::JSON::list();
   for (const auto& it : this->xb_licenses) {
@@ -255,7 +300,7 @@ phosg::JSON Account::json() const {
   }
   phosg::JSON bb_json = phosg::JSON::list();
   for (const auto& it : this->bb_licenses) {
-    bb_json.emplace_back(it.second->json());
+    bb_json.emplace_back(it.second->json(include_credentials));
   }
 
   phosg::JSON auto_patches_json = phosg::JSON::list();
@@ -399,8 +444,7 @@ std::string Account::str() const {
         it.second->gamertag, it.second->user_id, it.second->account_id);
   }
   for (const auto& it : this->bb_licenses) {
-    ret += std::format("  BB license: username={} password={}\n",
-        it.second->username, it.second->password);
+    ret += std::format("  BB license: username={}\n", it.second->username);
   }
 
   phosg::strip_trailing_whitespace(ret);
@@ -747,7 +791,7 @@ std::shared_ptr<Login> AccountIndex::from_bb_credentials_locked(
   auto login = std::make_shared<Login>();
   login->account = this->by_bb_username.at(username);
   login->bb_license = login->account->bb_licenses.at(username);
-  if (password && (login->bb_license->password != *password)) {
+  if (password && !login->bb_license->check_password(*password)) {
     throw incorrect_password();
   }
   if (login->account->ban_end_time && (login->account->ban_end_time >= phosg::now())) {
@@ -781,7 +825,7 @@ std::shared_ptr<Login> AccountIndex::from_bb_credentials(
     login->account->account_id = phosg::fnv1a32(username) & 0x7FFFFFFF;
     auto lic = std::make_shared<BBLicense>();
     lic->username = username;
-    lic->password = *password;
+    lic->set_plaintext_password(*password);
     login->account->bb_licenses.emplace(lic->username, lic);
     login->bb_license = lic;
     this->add_locked(login->account);
@@ -962,6 +1006,20 @@ void AccountIndex::add_bb_license(std::shared_ptr<Account> account, std::shared_
   }
 }
 
+void AccountIndex::set_bb_password(
+    std::shared_ptr<Account> account, const std::string& username, const std::string& password_or_hash) {
+  // Hash first (slow), outside the lock; then swap it in under the write lock, since BB logins read
+  // password_hash under the read lock from the thread pool.
+  BBLicense replacement;
+  replacement.set_password_or_hash(password_or_hash);
+  std::unique_lock g(this->lock);
+  auto it = account->bb_licenses.find(username);
+  if (it == account->bb_licenses.end()) {
+    throw std::runtime_error("license not registered to account");
+  }
+  it->second->password_hash = std::move(replacement.password_hash);
+}
+
 void AccountIndex::remove_dc_nte_license(std::shared_ptr<Account> account, const std::string& serial_number) {
   auto it = account->dc_nte_licenses.find(serial_number);
   if (it == account->dc_nte_licenses.end()) {
@@ -1060,6 +1118,14 @@ AccountIndex::AccountIndex(bool force_all_temporary) : force_all_temporary(force
               account->creation_time = sctp.time_since_epoch().count();
             }
             this->add(account);
+            // Corellia: rewrite files that still held plaintext BB passwords, so only hashes remain.
+            if (account->has_converted_plaintext_passwords()) {
+              account->save();
+              for (auto& it : account->bb_licenses) {
+                it.second->converted_from_plaintext = false;
+              }
+              phosg::log_info_f("Converted plaintext BB password(s) to hashes in {}", filename);
+            }
           } catch (const std::exception& e) {
             phosg::log_error_f("Failed to index account {}", filename);
             throw;
