@@ -63,6 +63,9 @@ protected:
     std::shared_ptr<const std::string> data;
   };
   std::shared_ptr<ServerState> state;
+  // Required bearer token for every HTTP API request (from NEWSERV_HTTP_API_TOKEN at startup).
+  // Empty means no authentication, which is upstream's behavior.
+  std::string api_token;
   std::array<std::unordered_set<std::shared_ptr<NewservHTTPClient>>, NUM_EVENT_TYPES> event_subscribers;
   HTTPRouter<std::variant<RawResponse, SharedRawResponse, std::shared_ptr<const phosg::JSON>>, NewservHTTPClient> router;
 
@@ -73,6 +76,8 @@ protected:
       HTTPEventType type) const {
     return this->event_subscribers.at(static_cast<size_t>(type));
   }
+
+  bool request_has_valid_token(const HTTPRequest& req) const;
 
   virtual asio::awaitable<std::unique_ptr<HTTPResponse>> handle_request(
       std::shared_ptr<NewservHTTPClient> c, HTTPRequest&& req);
