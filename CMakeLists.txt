@@ -50,6 +50,7 @@ add_custom_target(
 set(SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Revision.cc
     src/Account.cc
+    src/PasswordHash.cc
     src/AddressTranslator.cc
     src/AFSArchive.cc
     src/AsyncHTTPServer.cc
