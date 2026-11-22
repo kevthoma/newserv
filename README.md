@@ -285,6 +285,8 @@ A license is a set of credentials that a player can use to log in. There are six
 
 Each account may have multiple licenses. To add a license to an existing account, use `add-license` in the shell.
 
+In the Corellia fork, BB passwords are stored only as salted PBKDF2-SHA256 hashes (`PasswordHash` in the license file); older files with a plaintext `Password` are converted at startup. `add-license ... BB USERNAME PASSWORD` and `set-bb-password ACCOUNT-ID USERNAME PASSWORD` accept a plaintext password or an already-formed `pbkdf2-sha256$...` hash, and `set-bb-password` changes a password in place. The HTTP API never returns passwords or hashes; `POST /y/verify-bb-login` with `{"UserName": ..., "Password": ...}` answers `{"Valid": true, "AccountID": ...}` or `{"Valid": false}`.
+
 On BB, character data is scoped to the license, but system and Guild Card data is scoped to the account. That is, an account with multiple BB licenses can have more than 4 characters (up to 4 per license), but they will all share the same team membership and Guild Card lists.
 
 You may want to give your account elevated privileges. To do so, run `update-account ACCOUNT-ID flags=root` (replacing ACCOUNT-ID with your actual account-id). You can also use update-account to edit other parts of the account; see the help text for more information.

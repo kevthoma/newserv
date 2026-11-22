@@ -35,7 +35,8 @@ struct GCLicense {
   std::string password;
 
   static std::shared_ptr<GCLicense> from_json(const phosg::JSON& json);
-  phosg::JSON json() const;
+  // include_credentials=false leaves the password out (HTTP API output).
+  phosg::JSON json(bool include_credentials = true) const;
 };
 
 struct XBLicense {
@@ -49,10 +50,22 @@ struct XBLicense {
 
 struct BBLicense {
   std::string username;
-  std::string password;
+  // Corellia: never the plaintext. See PasswordHash.hh for the format.
+  std::string password_hash;
+  // Set when the license was loaded from a legacy plaintext "Password" field; the account file is
+  // rewritten at startup so the plaintext disappears from disk.
+  bool converted_from_plaintext = false;
+
+  // Plaintext only (1-16 characters, the game client's limit). Used for in-game account creation.
+  void set_plaintext_password(const std::string& password);
+  // Plaintext or an already-formed hash (stored as-is). Used by the admin add-license command, so the
+  // portal can create accounts from sign-ups without keeping the plaintext.
+  void set_password_or_hash(const std::string& password_or_hash);
+  bool check_password(const std::string& password) const;
 
   static std::shared_ptr<BBLicense> from_json(const phosg::JSON& json);
-  phosg::JSON json() const;
+  // include_credentials=false leaves the password hash out (HTTP API output).
+  phosg::JSON json(bool include_credentials = true) const;
 };
 
 struct Account {
@@ -123,7 +136,9 @@ struct Account {
   explicit Account(const phosg::JSON& json);
   virtual ~Account() = default;
 
-  phosg::JSON json() const;
+  // include_credentials=false leaves passwords and hashes out (HTTP API output).
+  phosg::JSON json(bool include_credentials = true) const;
+  bool has_converted_plaintext_passwords() const;
   virtual void save() const;
   virtual void delete_file() const;
 
@@ -214,6 +229,9 @@ public:
   void add_gc_license(std::shared_ptr<Account> account, std::shared_ptr<GCLicense> license);
   void add_xb_license(std::shared_ptr<Account> account, std::shared_ptr<XBLicense> license);
   void add_bb_license(std::shared_ptr<Account> account, std::shared_ptr<BBLicense> license);
+  // Corellia: replace a BB license's password in place (plaintext or an already-formed hash), so the
+  // account is never without a working login. Throws if the username isn't on that account.
+  void set_bb_password(std::shared_ptr<Account> account, const std::string& username, const std::string& password_or_hash);
   void remove_dc_nte_license(std::shared_ptr<Account> account, const std::string& serial_number);
   void remove_dc_license(std::shared_ptr<Account> account, uint32_t serial_number);
   void remove_pc_license(std::shared_ptr<Account> account, uint32_t serial_number);

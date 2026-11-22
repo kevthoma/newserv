@@ -581,7 +581,8 @@ ShellCommand c_add_license(
         }
         auto license = std::make_shared<BBLicense>();
         license->username = std::move(tokens[2]);
-        license->password = std::move(tokens[3]);
+        // Plaintext (hashed here) or an already-formed hash from the portal (stored as-is).
+        license->set_password_or_hash(tokens[3]);
         args.s->account_index->add_bb_license(account, license);
 
       } else {
@@ -591,6 +592,23 @@ ShellCommand c_add_license(
       account->save();
       co_return std::deque<std::string>{std::format("Account {:08X} updated", account->account_id)};
     });
+ShellCommand c_set_bb_password(
+    "set-bb-password", "set-bb-password ACCOUNT-ID USERNAME PASSWORD-OR-HASH\n\
+    Replace the password of an account's BB license in place (Corellia). The last\n\
+    argument is a plaintext password (up to 16 characters; it is hashed) or an\n\
+    already-formed pbkdf2-sha256 hash. Unlike delete-license + add-license, the\n\
+    account always keeps a working login.",
+    +[](ShellCommand::Args& args) -> asio::awaitable<std::deque<std::string>> {
+      auto tokens = phosg::split(args.args, ' ');
+      if (tokens.size() != 3) {
+        throw std::runtime_error("incorrect number of parameters");
+      }
+      auto account = args.s->account_index->from_account_id(stoul(tokens[0], nullptr, 16));
+      args.s->account_index->set_bb_password(account, tokens[1], tokens[2]);
+      account->save();
+      co_return std::deque<std::string>{std::format("Account {:08X} updated", account->account_id)};
+    });
+
 ShellCommand c_delete_license(
     "delete-license", "delete-license ACCOUNT-ID TYPE PRIMARY-CREDENTIAL\n\
     Delete a license from an account. ACCOUNT-ID and TYPE have the same\n\
