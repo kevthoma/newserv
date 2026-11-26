@@ -9,6 +9,12 @@
 #include "Types.hh"
 
 struct ShopRandomSetBase {
+  // ItemCreator expands each weighted row into a ProbabilityTable with this many slots, so a row whose weights sum to
+  // more than this throws every time the row is used (when generating a shop, which disconnects the player who opened
+  // it). The server checks every row with check_weight_sums() when it loads the tables; the binary/JSON parsers don't,
+  // since Sega's original weapon tables contain such a row (Hard, WeaponTypeWeightTables[4][1] sums to 101).
+  static constexpr size_t MAX_ROW_WEIGHT = 100;
+
   template <typename T>
   struct IntPairT {
     union {
@@ -50,6 +56,8 @@ struct ArmorShopRandomSet : ShopRandomSetBase {
   phosg::JSON json() const;
 
   void print(FILE* stream) const;
+  // Throws if any row sums to more than MAX_ROW_WEIGHT; set_name is used in the message
+  void check_weight_sums(const std::string& set_name) const;
 
   std::vector<std::vector<IntPairT<uint8_t>>> armor_table;
   std::vector<std::vector<IntPairT<uint8_t>>> shield_table;
@@ -86,6 +94,8 @@ struct ToolShopRandomSet : ShopRandomSetBase {
   phosg::JSON json() const;
 
   void print(FILE* stream) const;
+  // Throws if any row sums to more than MAX_ROW_WEIGHT; set_name is used in the message
+  void check_weight_sums(const std::string& set_name) const;
 
   static const std::vector<std::pair<uint8_t, uint8_t>> item_defs;
   static const std::array<uint8_t, 0x13> tech_num_map;
@@ -111,6 +121,8 @@ struct WeaponShopRandomSet : ShopRandomSetBase {
   phosg::JSON json() const;
 
   void print(FILE* stream) const;
+  // Throws if any row sums to more than MAX_ROW_WEIGHT; set_name is used in the message
+  void check_weight_sums(const std::string& set_name) const;
 
   static const std::array<std::pair<uint8_t, uint8_t>, 0x48> type_defs;
   static const std::array<std::pair<uint8_t, uint8_t>, 10> type_defs_39;

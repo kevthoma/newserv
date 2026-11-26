@@ -1097,7 +1097,7 @@ void ItemCreator::generate_armor_shop_armors(std::vector<ItemData>& shop, Episod
   }
   size_t table_index = this->get_table_index_for_armor_shop(player_level);
 
-  ProbabilityTable<uint8_t, 100> pt{this->armor_random_set->armor_table.at(table_index)};
+  ProbabilityTable<uint8_t, ShopRandomSetBase::MAX_ROW_WEIGHT> pt{this->armor_random_set->armor_table.at(table_index)};
   pt.shuffle(this->rand_crypt);
 
   for (size_t items_generated = 0; items_generated < num_items;) {
@@ -1135,7 +1135,7 @@ void ItemCreator::generate_armor_shop_shields(std::vector<ItemData>& shop, size_
   }
   size_t table_index = this->get_table_index_for_armor_shop(player_level);
 
-  ProbabilityTable<uint8_t, 100> pt{this->armor_random_set->shield_table.at(table_index)};
+  ProbabilityTable<uint8_t, ShopRandomSetBase::MAX_ROW_WEIGHT> pt{this->armor_random_set->shield_table.at(table_index)};
   pt.shuffle(this->rand_crypt);
 
   for (size_t items_generated = 0; items_generated < num_items;) {
@@ -1172,7 +1172,7 @@ void ItemCreator::generate_armor_shop_units(std::vector<ItemData>& shop, size_t 
   }
   size_t table_index = this->get_table_index_for_armor_shop(player_level);
 
-  ProbabilityTable<uint8_t, 100> pt{this->armor_random_set->unit_table.at(table_index)};
+  ProbabilityTable<uint8_t, ShopRandomSetBase::MAX_ROW_WEIGHT> pt{this->armor_random_set->unit_table.at(table_index)};
   pt.shuffle(this->rand_crypt);
 
   for (size_t items_generated = 0; items_generated < num_items;) {
@@ -1245,7 +1245,7 @@ void ItemCreator::generate_rare_tool_shop_recovery_items(std::vector<ItemData>& 
   static constexpr size_t num_items = 2;
 
   size_t table_index = this->get_table_index_for_tool_shop(player_level);
-  ProbabilityTable<uint8_t, 100> pt{this->tool_random_set->rare_recovery_table.at(table_index)};
+  ProbabilityTable<uint8_t, ShopRandomSetBase::MAX_ROW_WEIGHT> pt{this->tool_random_set->rare_recovery_table.at(table_index)};
   pt.shuffle(this->rand_crypt);
 
   size_t effective_num_items = num_items;
@@ -1280,7 +1280,7 @@ void ItemCreator::generate_tool_shop_tech_disks(std::vector<ItemData>& shop, siz
   }
 
   size_t table_index = this->get_table_index_for_tool_shop(player_level);
-  ProbabilityTable<uint8_t, 100> pt{this->tool_random_set->tech_disk_table.at(table_index)};
+  ProbabilityTable<uint8_t, ShopRandomSetBase::MAX_ROW_WEIGHT> pt{this->tool_random_set->tech_disk_table.at(table_index)};
   pt.shuffle(this->rand_crypt);
 
   size_t items_generated = 0;
@@ -1368,7 +1368,7 @@ std::vector<ItemData> ItemCreator::generate_weapon_shop_contents(size_t player_l
     }
   }
 
-  ProbabilityTable<uint8_t, 100> pt{this->weapon_random_set->weapon_type_weight_tables.at(table_index).at(section_id)};
+  ProbabilityTable<uint8_t, ShopRandomSetBase::MAX_ROW_WEIGHT> pt{this->weapon_random_set->weapon_type_weight_tables.at(table_index).at(section_id)};
   pt.shuffle(this->rand_crypt);
 
   std::vector<ItemData> shop;
@@ -1451,7 +1451,7 @@ void ItemCreator::generate_weapon_shop_item_special(ItemData& item, size_t playe
     table_index = 7;
   }
 
-  ProbabilityTable<uint32_t, 100> pt{this->weapon_random_set->special_mode_table.at(table_index)};
+  ProbabilityTable<uint32_t, ShopRandomSetBase::MAX_ROW_WEIGHT> pt{this->weapon_random_set->special_mode_table.at(table_index)};
   pt.shuffle(this->rand_crypt);
 
   // Note: The original code shuffles pt and then pops a single value from it. For simplicity, we just sample a single
@@ -1493,7 +1493,7 @@ void ItemCreator::generate_weapon_shop_item_bonus1(ItemData& item, size_t player
     table_index = 8;
   }
 
-  ProbabilityTable<uint32_t, 100> pt{this->weapon_random_set->bonus_type_table1.at(table_index)};
+  ProbabilityTable<uint32_t, ShopRandomSetBase::MAX_ROW_WEIGHT> pt{this->weapon_random_set->bonus_type_table1.at(table_index)};
   pt.shuffle(this->rand_crypt);
 
   // Note: The original code shuffles pt and then pops a single value from it. For simplicity, we just sample a single
@@ -1529,7 +1529,7 @@ void ItemCreator::generate_weapon_shop_item_bonus2(ItemData& item, size_t player
     table_index = 8;
   }
 
-  ProbabilityTable<uint32_t, 100> pt{this->weapon_random_set->bonus_type_table2.at(table_index)};
+  ProbabilityTable<uint32_t, ShopRandomSetBase::MAX_ROW_WEIGHT> pt{this->weapon_random_set->bonus_type_table2.at(table_index)};
   pt.shuffle(this->rand_crypt);
 
   do {
