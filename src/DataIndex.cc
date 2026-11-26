@@ -1871,10 +1871,12 @@ void DataIndex::load_drop_tables() {
   config_log.info_f("Loading armor table");
   auto armor_json = phosg::JSON::parse(phosg::load_file("system/tables/armor-shop-random-set.json"));
   auto new_armor_random_set = std::make_shared<ArmorShopRandomSet>(armor_json);
+  new_armor_random_set->check_weight_sums("system/tables/armor-shop-random-set.json");
 
   config_log.info_f("Loading tool table");
   auto tool_json = phosg::JSON::parse(phosg::load_file("system/tables/tool-shop-random-set.json"));
   auto new_tool_random_set = std::make_shared<ToolShopRandomSet>(tool_json);
+  new_tool_random_set->check_weight_sums("system/tables/tool-shop-random-set.json");
 
   config_log.info_f("Loading weapon tables");
   std::array<std::shared_ptr<const WeaponShopRandomSet>, 4> new_weapon_random_sets;
@@ -1885,8 +1887,9 @@ void DataIndex::load_drop_tables() {
       "system/tables/weapon-shop-random-set-ultimate.json",
   };
   for (size_t z = 0; z < 4; z++) {
-    new_weapon_random_sets[z] = std::make_shared<WeaponShopRandomSet>(
-        phosg::JSON::parse(phosg::load_file(filenames[z])));
+    auto weapon_set = std::make_shared<WeaponShopRandomSet>(phosg::JSON::parse(phosg::load_file(filenames[z])));
+    weapon_set->check_weight_sums(filenames[z]);
+    new_weapon_random_sets[z] = std::move(weapon_set);
   }
 
   config_log.info_f("Loading tekker adjustment set");

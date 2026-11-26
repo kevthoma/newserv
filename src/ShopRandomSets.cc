@@ -1,5 +1,7 @@
 #include "ShopRandomSets.hh"
 
+#include <format>
+
 #include "CommonFileFormats.hh"
 #include "StaticGameData.hh"
 #include "Types.hh"
@@ -24,6 +26,20 @@ void print_table_2d(FILE* stream, const std::vector<std::vector<T>>& table) {
       }
     }
     phosg::fwrite_fmt(stream, "\n");
+  }
+}
+
+template <typename RowsT>
+static void check_row_weight_sums(const std::string& set_name, const std::string& table_name, const RowsT& rows) {
+  for (size_t z = 0; z < rows.size(); z++) {
+    uint64_t sum = 0;
+    for (const auto& entry : rows[z]) {
+      sum += entry.weight;
+    }
+    if (sum > ShopRandomSetBase::MAX_ROW_WEIGHT) {
+      throw std::runtime_error(std::format("{}: {}[{}] weights sum to {} (maximum is {})",
+          set_name, table_name, z, sum, ShopRandomSetBase::MAX_ROW_WEIGHT));
+    }
   }
 }
 
@@ -258,6 +274,12 @@ phosg::JSON ArmorShopRandomSet::json() const {
   });
 }
 
+void ArmorShopRandomSet::check_weight_sums(const std::string& set_name) const {
+  check_row_weight_sums(set_name, "ArmorTable", this->armor_table);
+  check_row_weight_sums(set_name, "ShieldTable", this->shield_table);
+  check_row_weight_sums(set_name, "UnitTable", this->unit_table);
+}
+
 void ArmorShopRandomSet::print(FILE* stream) const {
   phosg::fwrite_fmt(stream, "ArmorShopRandomSet\n");
   phosg::fwrite_fmt(stream, "  Armor table\n");
@@ -425,6 +447,11 @@ phosg::JSON ToolShopRandomSet::json() const {
       {"TechDiskTable", json_for_table_t(this->tech_disk_table)},
       {"TechDiskLevelTable", json_for_table_t(this->tech_disk_level_table)},
   });
+}
+
+void ToolShopRandomSet::check_weight_sums(const std::string& set_name) const {
+  check_row_weight_sums(set_name, "RareRecoveryTable", this->rare_recovery_table);
+  check_row_weight_sums(set_name, "TechDiskTable", this->tech_disk_table);
 }
 
 void ToolShopRandomSet::print(FILE* stream) const {
@@ -778,6 +805,15 @@ phosg::JSON WeaponShopRandomSet::json() const {
       {"DefaultGrindRangeTable", json_for_fixed_table_t(this->default_grind_range_table)},
       {"FavoredGrindRangeTable", json_for_fixed_table_t(this->favored_grind_range_table)},
   });
+}
+
+void WeaponShopRandomSet::check_weight_sums(const std::string& set_name) const {
+  for (size_t z = 0; z < this->weapon_type_weight_tables.size(); z++) {
+    check_row_weight_sums(set_name, std::format("WeaponTypeWeightTables[{}]", z), this->weapon_type_weight_tables[z]);
+  }
+  check_row_weight_sums(set_name, "BonusTypeTable1", this->bonus_type_table1);
+  check_row_weight_sums(set_name, "BonusTypeTable2", this->bonus_type_table2);
+  check_row_weight_sums(set_name, "SpecialModeTable", this->special_mode_table);
 }
 
 void WeaponShopRandomSet::print(FILE* stream) const {
